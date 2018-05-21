@@ -1,9 +1,12 @@
 package com.popoaichuiniu.test;
 
-import java.util.Iterator;
+import java.util.*;
 
 import javax.management.InstanceAlreadyExistsException;
 
+import beaver.Parser;
+import com.popoaichuiniu.intentGen.IFBlock;
+import com.popoaichuiniu.util.Config;
 import org.apache.log4j.Logger;
 
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
@@ -19,8 +22,7 @@ import soot.jimple.*;
 import soot.jimple.infoflow.android.data.AndroidMethod;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
-import soot.toolkits.graph.BriefUnitGraph;
-import soot.toolkits.graph.UnitGraph;
+import soot.toolkits.graph.*;
 import soot.toolkits.scalar.SimpleLocalDefs;
 
 public class TestSootMethod {
@@ -32,7 +34,7 @@ public class TestSootMethod {
 	public static void main(String[] args) {
 		
 		
-		AndroidCallGraphHelper androidCallGraphHelper=new AndroidCallGraphHelper("/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/app-debug.apk", androidPlatformPath);
+		AndroidCallGraphHelper androidCallGraphHelper=new AndroidCallGraphHelper(Config.defaultAppPath, androidPlatformPath);
 		
 		CallGraph cGraph=androidCallGraphHelper.getCg();
 		SootMethod entryPoint = androidCallGraphHelper.getEntryPoint();
@@ -41,85 +43,94 @@ public class TestSootMethod {
 		for (Iterator<Edge> iterator = cGraph.edgesOutOf(entryPoint); iterator.hasNext();)// DummyMain方法调用的所有方法（各个组件的回调方法和生命周期）
 		{
 			SootMethod sootMethod=iterator.next().tgt();
-			//sootMethod.getDeclaration();		
+
+
+
+
 		
 			
 			
-			if(sootMethod.getDeclaration().contains("onCreate")&&sootMethod.getDeclaringClass().getName().contains("Main2Activity"))
+			if(sootMethod.getDeclaration().contains("onCreate")&&sootMethod.getDeclaringClass().getName().contains("Main3Activity"))
 			{
-				System.out.println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-				
-				System.out.println(sootMethod.getActiveBody().toString());
-				System.out.println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-				
-				UnitGraph unitGraph=new BriefUnitGraph(sootMethod.getActiveBody());
-				SimpleLocalDefs defs=new SimpleLocalDefs(unitGraph);
-				
-				System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-				
-				for(Iterator<Unit> iterator2=unitGraph.iterator();iterator2.hasNext();)
+
+
+
+				//System.out.println(sootMethod.getActiveBody());
+
+				for(Unit unit:sootMethod.getActiveBody().getUnits())
 				{
-					Unit unit=iterator2.next();
-
-					if(unit instanceof IfStmt)
-					{
-						System.out.println(unit.toString());
-						Value con1=((ConditionExpr)(((IfStmt)unit).getCondition())).getOp1();
-
-						System.out.println(defs.getDefsOfAt((Local)con1,unit));
-					}
-
-
-
-
-
-
-
-
-
-//					if(unit instanceof InvokeStmt)
-//					{
-//						//System.out.println(unit.toString());
-//
-//						InvokeExpr invokeExpr=((InvokeStmt)unit).getInvokeExpr();
-//						if(invokeExpr.getArgCount()<=0)
-//							continue;
-//
-//						Value value=invokeExpr.getArg(0);
-//						if(value instanceof Local)
-//						{
-//							System.out.println("1111111111111111111111111");
-//							System.out.println(defs.getDefsOfAt((Local) value, unit));
-//							System.out.println("1111111111111111111111111");
-//
-//
-//						}
-//
-//
-//
-//					}
-//					System.out.println(unit.getUseBoxes());
-					
-//					for(ValueBox valueBox:unit.getDefBoxes())
-//					{
-//						if (valueBox.getValue() instanceof Local)
-//						{
-//							System.out.println(((Local)valueBox.getValue()).getName());
-//							System.out.println(((Local)valueBox.getValue()).getNumber());
-//						}
-//						else {
-//							System.out.println("uuuuuuuuuuuuuuuuuuuuuu");
-//						}
-//					}
-				//	System.out.println("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy");
+					System.out.println(unit);
 				}
-				
-				System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-					
+
+//				ExceptionalUnitGraph exceptionalUnitGraph=new ExceptionalUnitGraph(sootMethod.getActiveBody());
+//
+//				ExceptionalBlockGraph exceptionalBlockGraph=new ExceptionalBlockGraph(exceptionalUnitGraph);
+//
+//
+//				System.out.println(exceptionalUnitGraph.getHeads());
+//
+//				Block blockHead=exceptionalBlockGraph.getHeads().get(0);
+//
+//
+//				List<Set<Block>> allBlockPath=new ArrayList<>();
+//				for(Block block:blockHead.getSuccs())
+//				{
+//					LinkedHashSet<Block>  callBlockPath=new LinkedHashSet();
+//					getAllBlockPath(block,callBlockPath,allBlockPath);
+//
+//
+//				}
+//
+//				for(Set<Block> blockPath:allBlockPath)
+//				{
+//					System.out.println("11111111111111111111111111");
+//					for(Block block:blockPath)
+//					{
+//						System.out.println(block);
+//					}
+//					System.out.println("22222222222222222222222222");
+//				}
+
+
+
+
+
+
+
 			}
 		}
 		
 		
 	}
+
+	public static void getAllBlockPath(Block block,Set<Block> callBlockPath,List<Set<Block>> allBlockPath)
+	{
+
+		Set <Block> callBlockPathCopy=new LinkedHashSet<>(callBlockPath);
+
+		callBlockPathCopy.add(block);
+
+
+		if(block.getSuccs().size()==0)
+		{
+			allBlockPath.add(callBlockPathCopy);
+			return;
+		}
+		else
+		{
+			for(Block childBlock:block.getSuccs())
+			{
+				if(!callBlockPathCopy.contains(childBlock))
+				{
+					getAllBlockPath(childBlock,callBlockPathCopy,allBlockPath);
+				}
+			}
+		}
+
+	}
+
+
+
+
 
 }

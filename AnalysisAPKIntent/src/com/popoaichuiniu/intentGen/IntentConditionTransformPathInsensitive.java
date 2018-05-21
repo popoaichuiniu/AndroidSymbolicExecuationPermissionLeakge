@@ -5,10 +5,7 @@ import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
 import com.popoaichuiniu.util.Util;
 import soot.*;
-import soot.jimple.ConditionExpr;
-import soot.jimple.DefinitionStmt;
-import soot.jimple.IfStmt;
-import soot.jimple.InvokeExpr;
+import soot.jimple.*;
 import soot.jimple.internal.JIfStmt;
 import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.toolkits.graph.BriefUnitGraph;
@@ -26,11 +23,15 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
     static BufferedWriter intentDefineUnitFile = null;
 
+    static BufferedWriter intentUseUnitFile = null;
+
     static BufferedWriter intentDefineUnitFileError11111111 = null;
 
     static BufferedWriter intentDefineUnitFileError22222222 = null;
 
     static BufferedWriter ifUnitFile = null;
+
+    static BufferedWriter allIfUnitFile = null;
 
 
     private String appPath = null;
@@ -55,6 +56,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
             Body body = sootMethod.getActiveBody();
 
+
             BriefUnitGraph briefUnitGraph = new BriefUnitGraph(body);
 
             SimpleLocalDefs defs = new SimpleLocalDefs(briefUnitGraph);
@@ -63,7 +65,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
             IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(briefUnitGraph);
 
 
-            System.out.println("#############################"+sootMethod.getBytecodeSignature()+"################################");
+            System.out.println("#############################" + sootMethod.getBytecodeSignature() + "################################");
 
 
             for (Unit unit : body.getUnits()) {
@@ -76,20 +78,65 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
 
                         if (invokeExpr.getMethod().getDeclaringClass().getName().equals("android.content.Intent")) {
-                            if (invokeExpr instanceof JVirtualInvokeExpr) {
-                                JVirtualInvokeExpr jVirtualInvokeExpr = (JVirtualInvokeExpr) invokeExpr;
+                            if (invokeExpr instanceof InstanceInvokeExpr) {
+                                InstanceInvokeExpr instanceInvokeExpr = (InstanceInvokeExpr) invokeExpr;
 
-                                Value value = jVirtualInvokeExpr.getBase();
+                                Value base = instanceInvokeExpr.getBase();
 
-                                if (value instanceof Local) {
-                                    Local intentLocal = (Local) value;
+
+                                System.out.println("111111111111111111111111111111111111");
+
+                                FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(unit);
+                                for (Value value : flowSet) {
+                                    System.out.println(value);
+                                }
+                                System.out.println("2222222222222222222222222222222222222");
+
+
+                                if(!intentFlowAnalysis.getFlowBefore(unit).contains(base))
+                                {
+                                    continue;
+                                }
+                                try {
+                                    intentUseUnitFile.write(definitionStmt + "\n");
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+
+                                if (base instanceof Local) {
+                                    Local intentLocal = (Local) base;
 
                                     for (Unit unitDefIntentLocal : defs.getDefsOfAt(intentLocal, definitionStmt)) {
 
                                         try {
                                             intentDefineUnitFile.write(unitDefIntentLocal + "##########" + definitionStmt + "\n");
+
                                         } catch (IOException e) {
                                             e.printStackTrace();
+                                        }
+                                        if (unitDefIntentLocal instanceof DefinitionStmt) {
+                                            DefinitionStmt defStmtDefIntentLocal = (DefinitionStmt) unitDefIntentLocal;
+
+                                            if (defStmtDefIntentLocal.getRightOp() instanceof CastExpr) {
+                                                CastExpr castExpr = (CastExpr) defStmtDefIntentLocal.getRightOp();
+                                                Value op = castExpr.getOp();
+                                                if (op instanceof Local) {
+                                                    for (Unit opDefUnit : defs.getDefsOfAt((Local) op, defStmtDefIntentLocal)) {
+                                                        System.out.println("cast******"+opDefUnit);
+                                                    }
+                                                }
+                                            }
+
+
+//                                            if(defStmtDefIntentLocal.getRightOp() instanceof Local)
+//                                            {
+//                                                Local  intentLocalSourceLocal= (Local) defStmtDefIntentLocal.getRightOp();
+//                                                System.out.println(defStmtDefIntentLocal);
+//                                                for(Unit temp:defs.getDefsOfAt(intentLocalSourceLocal,defStmtDefIntentLocal))
+//                                                {
+//                                                    System.out.println(temp);
+//                                                }
+//                                            }
                                         }
 
 
@@ -108,7 +155,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                 //throw new RuntimeException("11111111111111111111111111111");
 
                                 try {
-                                    intentDefineUnitFileError11111111.write(definitionStmt + "\n");//不是JvirtualExptr
+                                    intentDefineUnitFileError11111111.write(definitionStmt + "\n");//不是InstanceInvokeExptr  比如Intent静态方法
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                 }
@@ -116,27 +163,38 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                         }
                     }
 
+
                 }
+//
+//                if (unit instanceof JIfStmt) {
+//                    FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(unit);
+//                    System.out.println("111111111111111111111111111111111111");
+//
+//
+//                    for (Value value : flowSet) {
+//                        System.out.println(value);
+//                    }
+//                    System.out.println("2222222222222222222222222222222222222");
+//                }
 
-                if (unit instanceof JIfStmt) {
-                    FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(unit);
-                    System.out.println("111111111111111111111111111111111111");
 
-
-                    for (Value value : flowSet) {
-                        System.out.println(value);
-                    }
-                    System.out.println("2222222222222222222222222222222222222");
-                }
                 System.out.println(unit);
 
                 if (unit instanceof JIfStmt) {//数据流分析，判断intent值是否到达Ifstmt
 
+
+
                     IfStmt ifStmt = (IfStmt) unit;
+
                     ConditionExpr condition = (ConditionExpr) ifStmt.getCondition();
                     Value op1 = condition.getOp1();
 
                     Value op2 = condition.getOp2();
+                    try {
+                        allIfUnitFile.write(ifStmt+"&&&&&&"+op1.getType().toString()+"&&&&&&"+op2.getType().toString()+"\n");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
                     FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(ifStmt);
 
@@ -145,7 +203,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                             for (Unit defCon1Unit : defs.getDefsOfAt((Local) op1, ifStmt)) {
                                 if (defCon1Unit instanceof DefinitionStmt) {
                                     try {
-                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt + "\n");
+                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt +"&&&&&&&&&"+ op1.getType().toString()+"\n");
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -159,7 +217,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                             for (Unit defCon1Unit : defs.getDefsOfAt((Local) op2, ifStmt)) {
                                 if (defCon1Unit instanceof DefinitionStmt) {
                                     try {
-                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt + "\n");
+                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt +"&&&&&&&&&"+ op2.getType().toString()+"\n");
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -174,6 +232,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
 
         }
+
 
     }
 
@@ -197,14 +256,18 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
             intentDefineUnitFileError11111111 = new BufferedWriter(new FileWriter("intentDefUnitError1111111.txt"));
             intentDefineUnitFileError22222222 = new BufferedWriter(new FileWriter("intentDefUnitError2222222.txt"));
 
+            intentUseUnitFile=new BufferedWriter(new FileWriter("intentUseUnit.txt"));
+
             ifUnitFile = new BufferedWriter(new FileWriter("ifStmtDefAboutIntent.txt"));
+
+            allIfUnitFile=new BufferedWriter(new FileWriter("allIfUnitFile.txt"));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         String appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
         //String appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/src/com/popoaichuiniu/intentGen/15B08211CDC4FD079F3B1297CD279347958C7F53FEE51EC204B217FE01D0472F_signed_zipalign.apk";
-        //String appDir=Config.defaultAppPath;
+       // String appDir=Config.defaultAppPath;
         File appDirFile = new File(appDir);
 
 
@@ -244,6 +307,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                     if (hasAnalysisAPP.contains(file.getAbsolutePath())) {
                         continue;
                     }
+                    System.out.println(file.getAbsolutePath());
 
                     Thread childThread = new Thread(new Runnable() {
                         @Override
@@ -255,6 +319,8 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                 intentDefineUnitFileError11111111.flush();
                                 intentDefineUnitFileError22222222.flush();
                                 ifUnitFile.flush();
+                                intentUseUnitFile.flush();
+                                allIfUnitFile.flush();
 
 
                             } catch (IOException e) {
@@ -267,6 +333,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
                     try {
                         childThread.join();
+                        System.out.println(file.getAbsolutePath() + "结束");
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -295,6 +362,9 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                 intentDefineUnitFileError11111111.flush();
                 intentDefineUnitFileError22222222.flush();
                 ifUnitFile.flush();
+                intentUseUnitFile.flush();
+                allIfUnitFile.flush();
+
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -308,6 +378,9 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
             intentDefineUnitFileError22222222.close();
 
             ifUnitFile.close();
+
+            intentUseUnitFile.close();
+            allIfUnitFile.close();
 
 
         } catch (IOException e) {
