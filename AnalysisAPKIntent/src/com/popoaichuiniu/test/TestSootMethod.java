@@ -50,17 +50,32 @@ public class TestSootMethod {
 		
 			
 			
-			if(sootMethod.getDeclaration().contains("onCreate")&&sootMethod.getDeclaringClass().getName().contains("Main3Activity"))
+			if(sootMethod.getDeclaration().contains("onCreate")&&sootMethod.getDeclaringClass().getName().contains("TestIFBlock"))
 			{
 
 
-
-				//System.out.println(sootMethod.getActiveBody());
-
-				for(Unit unit:sootMethod.getActiveBody().getUnits())
+				for (Iterator<Edge> iterator1 = cGraph.edgesOutOf(sootMethod); iterator1.hasNext();)
 				{
-					System.out.println(unit);
+
+					SootMethod sootMethod1=iterator1.next().tgt();
+					if(sootMethod1.getDeclaration().contains("test"))
+					{
+						System.out.println(sootMethod1);
+
+						for(Unit unit:sootMethod1.getActiveBody().getUnits())
+						{
+							System.out.println(unit);
+						}
+					}
 				}
+
+
+//				//System.out.println(sootMethod.getActiveBody());
+//
+//				for(Unit unit:sootMethod.getActiveBody().getUnits())
+//				{
+//					System.out.println(unit);
+//				}
 
 //				ExceptionalUnitGraph exceptionalUnitGraph=new ExceptionalUnitGraph(sootMethod.getActiveBody());
 //

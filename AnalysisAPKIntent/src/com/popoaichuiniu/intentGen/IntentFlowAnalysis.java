@@ -3,11 +3,12 @@ package com.popoaichuiniu.intentGen;
 import soot.Local;
 import soot.Unit;
 import soot.Value;
+import soot.ValueBox;
 import soot.jimple.*;
 
 import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.toolkits.graph.DirectedGraph;
-import soot.toolkits.scalar.ArraySparseSet;
+
 import soot.toolkits.scalar.FlowSet;
 import soot.toolkits.scalar.ForwardFlowAnalysis;
 
@@ -44,8 +45,8 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
             DefinitionStmt definitionStmt = (DefinitionStmt) d;
 
 
-            if (definitionStmt.getRightOp().getType().toString().equals("android.content.Intent")) {//get Intent
-                if (definitionStmt.getRightOp() instanceof Local || definitionStmt.getRightOp() instanceof ParameterRef || definitionStmt.getRightOp() instanceof FieldRef) {
+            if (definitionStmt.getRightOp().getType().toString().equals("android.content.Intent")) {//Intent 从参数和域
+                if ( definitionStmt.getRightOp() instanceof ParameterRef || definitionStmt.getRightOp() instanceof FieldRef) {
 
 
                     out.add(definitionStmt.getRightOp());
@@ -58,20 +59,20 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 
                 } else if (definitionStmt.getRightOp() instanceof JVirtualInvokeExpr) {
                     JVirtualInvokeExpr jVirtualInvokeExpr = (JVirtualInvokeExpr) definitionStmt.getRightOp();
-                    if (jVirtualInvokeExpr.getMethod().getName().equals("getIntent")) {
+                    if (jVirtualInvokeExpr.getMethod().getName().equals("getIntent")) {//intent从getIntent方法中来
 
                         out.add(definitionStmt.getLeftOp());
 
 
                     }
-                    //new Intent()不要
+
                 }
-                else if(definitionStmt.getRightOp() instanceof CastExpr)
+                else if(definitionStmt.getRightOp() instanceof CastExpr)//intent从强制转换而来
                 {
                     out.add(definitionStmt.getLeftOp());
                 }
 
-            } else if (definitionStmt.containsInvokeExpr()) {// intent attribute
+            } else if (definitionStmt.containsInvokeExpr()) {// intent attribute加入
                 if (definitionStmt.getInvokeExpr() instanceof JVirtualInvokeExpr) {
                     JVirtualInvokeExpr invokeExpr = (JVirtualInvokeExpr) definitionStmt.getInvokeExpr();
                     if (invokeExpr.getBase().getType().toString().equals("android.content.Intent")) {
@@ -94,48 +95,78 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 
             //in value dataflow to others
 
-            if (definitionStmt.getRightOp() instanceof Local) {
+//            if (definitionStmt.getRightOp() instanceof Local) {
+//
+//                if (in.contains(definitionStmt.getRightOp())) {
+//
+//                    out.add(definitionStmt.getLeftOp());
+//
+//
+//                }
+//
+//
+//            } else if (definitionStmt.containsInvokeExpr()) {
+//                InvokeExpr invokeExpr = definitionStmt.getInvokeExpr();
+//
+//                List<Value> args = invokeExpr.getArgs();
+//                for (Value arg : args) {
+//                    if (in.contains(arg)) {
+//
+//                        out.add(definitionStmt.getLeftOp());
+//
+//
+//                        break;
+//                    }
+//                }
+//                if (invokeExpr instanceof InstanceInvokeExpr) {
+//                    InstanceInvokeExpr instanceInvokeExpr = (InstanceInvokeExpr) invokeExpr;
+//                    if (in.contains(instanceInvokeExpr.getBase())) {
+//                        out.add(definitionStmt.getLeftOp());
+//
+//                    }
+//                }
+//            }
+//            else {
+//
+//            }
 
-                if (in.contains(definitionStmt.getRightOp())) {
+            List<ValueBox> usedUnitBox=definitionStmt.getRightOp().getUseBoxes();
 
+
+            for(ValueBox valueBox:usedUnitBox)
+            {
+                Value value=valueBox.getValue();
+                if(in.contains(value))
+                {
                     out.add(definitionStmt.getLeftOp());
-
-
-                }
-
-
-            } else if (definitionStmt.containsInvokeExpr()) {
-                InvokeExpr invokeExpr = definitionStmt.getInvokeExpr();
-
-                List<Value> args = invokeExpr.getArgs();
-                for (Value arg : args) {
-                    if (in.contains(arg)) {
-
-                        out.add(definitionStmt.getLeftOp());
-
-
-                        break;
-                    }
-                }
-                if (invokeExpr instanceof InstanceInvokeExpr) {
-                    InstanceInvokeExpr instanceInvokeExpr = (InstanceInvokeExpr) invokeExpr;
-                    if (in.contains(instanceInvokeExpr.getBase())) {
-                        out.add(definitionStmt.getLeftOp());
-
-                    }
+                    break;
                 }
             }
+
 
             //kill
 
             if (in.contains(definitionStmt.getLeftOp())) {
+
+
+                for(ValueBox valueBox:usedUnitBox)
+                {
+                    Value value=valueBox.getValue();
+                    if(in.contains(value))
+                    {
+                        return;
+                    }
+                }
+
+
+
                 if (definitionStmt.getRightOp().getType().toString().equals("android.content.Intent")) {
-                    if (definitionStmt.getRightOp() instanceof Local || definitionStmt.getRightOp() instanceof ParameterRef || definitionStmt.getRightOp() instanceof FieldRef) {
+                    if ( definitionStmt.getRightOp() instanceof ParameterRef || definitionStmt.getRightOp() instanceof FieldRef) {
 
                         return;
 
 
-                    } else if (definitionStmt.getRightOp() instanceof JVirtualInvokeExpr) {//new Intent()不要
+                    } else if (definitionStmt.getRightOp() instanceof JVirtualInvokeExpr) {
                         JVirtualInvokeExpr jVirtualInvokeExpr = (JVirtualInvokeExpr) definitionStmt.getRightOp();
                         if (jVirtualInvokeExpr.getMethod().getName().equals("getIntent")) {
 
@@ -150,24 +181,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                     }
                 }
 
-                if (definitionStmt.containsInvokeExpr()) {
-                    InvokeExpr invokeExpr = definitionStmt.getInvokeExpr();
 
-                    for (Value arg : invokeExpr.getArgs()) {
-                        if (in.contains(arg)) {
-                            return;
-                        }
-                    }
-
-                    if (invokeExpr instanceof InstanceInvokeExpr) {
-                        InstanceInvokeExpr instanceInvokeExpr = (InstanceInvokeExpr) invokeExpr;
-                        if (in.contains(instanceInvokeExpr.getBase())) {
-                            return;
-                        }
-                    }
-
-
-                }
 
                 //this unit is not about intent,so kill
 

@@ -1,13 +1,16 @@
 package com.popoaichuiniu.intentGen;
 
+import com.microsoft.z3.Z3Exception;
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Util;
 import com.popoaichuiniu.util.Config;
 import org.javatuples.Pair;
 import org.javatuples.Quartet;
+
 import soot.*;
 import soot.jimple.*;
+import soot.jimple.internal.AbstractJimpleIntBinopExpr;
 import soot.jimple.internal.JCastExpr;
 import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
@@ -21,6 +24,8 @@ import soot.toolkits.scalar.SimpleLocalDefs;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.locks.Condition;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
@@ -42,15 +47,39 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
     /**
+     * key:extraDataSymbol,value:key  ///   xxx=ie.ge.*("ttt“),ie有可能是bundle或者intent
+     */
+
+    private Map<String, String> extraDataMapKey = new HashMap<>();
+
+    /**
      * key: a symbol used to represent a Local, value: the Local represented by the symbol
      */
     private Map<String, Local> symbolLocalMap = new HashMap<String, Local>();
 
 
     /**
+     * key: a symbol used to represent a Local, value: the defunit of the local
+     */
+    private Map<String, Unit> symbolDefUnitMap = new HashMap<String, Unit>();
+
+
+    /**
      * key: a symbol used to represent a Local, value: the Local represented by the symbol
      */
     private Map<Local, String> localSymbolMap = new HashMap<Local, String>();
+
+
+    private Map<String, String> extraFromMap = new HashMap<>();//key:extra   value:extra 从哪里得到, intent还是bundle
+
+
+    Set<Pair<Unit, SootMethod>> infeasibleTargets = new LinkedHashSet<Pair<Unit, SootMethod>>();
+
+
+    Map<SootMethod, Map<Unit, List<UnitPath>>> methodSummaries = new HashMap<SootMethod, Map<Unit, List<UnitPath>>>();
+
+
+    Map<Set<Unit>, Intent> pathIntents = new LinkedHashMap<Set<Unit>, Intent>();
 
 
     public IntentConditionTransformSymbolicExcutation(String apkFilePath) {
@@ -123,22 +152,37 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         if (body != null) {
             PatchingChain<Unit> units = body.getUnits();
 
-            IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(new BriefUnitGraph(body));
+            UnitGraph ug = new BriefUnitGraph(body);
+
+            IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(ug);
+
+            SimpleLocalDefs defs = new SimpleLocalDefs(ug);
+
+//            for (Unit unit : units) {
+//                boolean isNeedAnalysis = unitNeedAnalysis(unit, sootMethod);
+//
+//
+//                if (isNeedAnalysis) {
+//
+//
+//                    doAnalysisOnUnit(unit, sootMethod, cg, intentFlowAnalysis);
+//                }
+//            }
 
             for (Unit unit : units) {
-                boolean isNeedAnalysis = unitNeedAnalysis(unit, sootMethod);
-
-                isNeedAnalysis = true;//---------为了方便测试----------------------------------------------------------------------
-                if (isNeedAnalysis) {
-                    doAnalysisOnUnit(unit, sootMethod, cg, intentFlowAnalysis);
+                if (unit.toString().contains("sendTextMessage")) {
+                    doAnalysisOnUnit(unit, sootMethod, defs, cg, intentFlowAnalysis);//----------------------------------------为了方便测试
                 }
+
             }
+
+
         }
 
 
     }
 
-    private void doAnalysisOnUnit(Unit unit, SootMethod sootMethod, CallGraph cg, IntentFlowAnalysis intentFlowAnalysis) {
+    private boolean doAnalysisOnUnit(Unit unit, SootMethod sootMethod, SimpleLocalDefs defs, CallGraph cg, IntentFlowAnalysis intentFlowAnalysis) {
 
         //System.out.println(unit.toString());
 
@@ -149,26 +193,520 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             finalPathsLimit = Integer.MAX_VALUE;
         }
 
-        BriefUnitGraph ug = new BriefUnitGraph(sootMethod.getActiveBody());
+        UnitGraph ug = new BriefUnitGraph(sootMethod.getActiveBody());
 
 
         getAllPathInMethod(unit, ug, finalPaths, new LinkedHashSet<Unit>());
 
 
-        System.out.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        List<UnitPath> intraUnitPaths = new ArrayList<UnitPath>();
+        Map<Unit, List<UnitPath>> unitSum = null;
+        Map<Set<Unit>, UnitPath> pathMapUnitPathConds = new LinkedHashMap<Set<Unit>, UnitPath>();//key：path ----------------value：路径的条件
+        System.out.println("%%%%%%%%%%%%%%%%%%%%%%%%%" + sootMethod.getBytecodeSignature() + "%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
         for (Set<Unit> path : finalPaths) {
             Set<String> currPathCond = new LinkedHashSet<String>();
             Set<String> currDecls = new LinkedHashSet<String>();
-            analysisPathIntraMethod(path, sootMethod, cg, intentFlowAnalysis, currPathCond, currDecls);
+            analysisPathIntraMethod(path, sootMethod, defs, cg, intentFlowAnalysis, currPathCond, currDecls);
+
+            System.out.println("33333333333333333333333333333333333");
+            currDecls.stream().forEach(System.out::println);
+
+            currPathCond.stream().forEach(System.out::println);
+
+            System.out.println("44444444444444444444444444444444444");
+
+            UnitPath up = new UnitPath(currPathCond, currDecls, path);
+            intraUnitPaths.add(up);
+
+            if (methodSummaries.containsKey(sootMethod)) {
+                unitSum = methodSummaries.get(sootMethod);//unitSum  key:startingUnit  value:method enrty to startingUnit  all path
+            } else {
+                unitSum = new HashMap<Unit, List<UnitPath>>();
+            }
+
+            List<UnitPath> unitPaths = null;
+            if (unitSum.containsKey(unit)) {
+                unitPaths = unitSum.get(unit);
+            } else {
+                unitPaths = new ArrayList<UnitPath>();
+            }
+            unitPaths.add(up);
+            unitSum.put(unit, unitPaths);
+
+            methodSummaries.put(sootMethod, unitSum);
+
+            pathMapUnitPathConds.put(path, up);
+
+
         }
+
         System.out.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        //--------------------------------
+
+
+        //对路径中的方法处理，其可能有约束(如果不解决的话，可能中间崩溃)
+
+
+        //--------------------------------
+
+        boolean isFeasibleUnit = false;
+
+
+        for (Map.Entry<Set<Unit>, UnitPath> pathMapPathCondEntry : pathMapUnitPathConds.entrySet()) {
+            Set<Unit> onePath = pathMapPathCondEntry.getKey();
+
+            UnitPath oneUnitPath = pathMapPathCondEntry.getValue();
+
+            boolean isFeasible = runSolvingPhase(sootMethod, onePath, oneUnitPath.getPathCond(), oneUnitPath.getDecl());
+
+            if (!isFeasible) {
+                infeasibleTargets.add(new Pair<Unit, SootMethod>(unit, sootMethod));
+            } else {
+                isFeasibleUnit = true;
+            }
+
+
+        }
+
+
+        return isFeasibleUnit;
 
 
     }
 
-    private void analysisPathIntraMethod(Set<Unit> path, SootMethod sootMethod, CallGraph cg, IntentFlowAnalysis intentFlowAnalysis, Set<String> currPathCond, Set<String> currDecls) {
+    protected boolean runSolvingPhase(SootMethod method, Set<Unit> currPath, Set<String> interPathCond, Set<String> interDecls) {
 
-        SimpleLocalDefs defs = new SimpleLocalDefs(new BriefUnitGraph(sootMethod.getActiveBody()));
+        Pair<Intent, Boolean> soln = findSolutionForPath(interPathCond, method, interDecls, currPath);
+        boolean feasible = soln.getValue1();
+        Intent genIntent = soln.getValue0();
+
+        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!" + currPath.iterator().next() + "!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        if (feasible) {
+            System.out.println(genIntent);
+        } else {
+            System.out.println("路径不可行");
+        }
+        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+        return feasible;
+    }
+
+    public Pair<Intent, Boolean> findSolutionForPath(Set<String> currPathCond,
+                                                     SootMethod method,
+                                                     Set<String> decls,
+                                                     Set<Unit> currPath) {
+        Set<Quartet<String, String, String, String>> extraData = new LinkedHashSet<Quartet<String, String, String, String>>();
+        String action = null;
+        Set<String> categories = new LinkedHashSet<String>();
+        boolean isPathFeasible = false;
+
+        try {
+            Pair<Map<String, String>, Boolean> ret = returnSatisfyingModel(decls, currPathCond);
+            Map<String, String> model = ret.getValue0();
+            Boolean isSat = ret.getValue1();
+            if (!isSat) {
+                //logger.debug("path is infeasible");
+                isPathFeasible = false;
+            } else {
+                //logger.debug("path is feasible---here is a solution");
+                isPathFeasible = true;
+
+                Map<String, String> intentActionSymbols = new LinkedHashMap<String, String>();
+                for (String expr : currPathCond) {
+                    Pattern p = Pattern.compile("\\(assert \\(= \\(getAction (.+)\\) (.+)\\)\\)");
+                    Matcher m = p.matcher(expr);
+                    while (m.find()) {
+                        String intentSymbol = m.group(1);
+                        //logger.info("intent symbol for action: " + intentSymbol);
+
+                        String actionStrSymbol = m.group(2);
+                        //logger.info("action symbol: " + actionStrSymbol);
+
+                        intentActionSymbols.put(intentSymbol, actionStrSymbol);//
+                    }
+                }
+
+                Map<String, List<String>> intentOrBundleLocalKeys = new LinkedHashMap<String, List<String>>();
+                for (String expr : currPathCond) {
+                    Pattern p = Pattern.compile("\\(assert \\(= \\(containsKey (.+) \\\"(.+)\\\"\\) true\\)\\)");
+                    Matcher m = p.matcher(expr);
+                    while (m.find()) {
+                        String intentOrBundleLocalSymbol = m.group(1);
+
+                        String key = m.group(2);
+
+                        List<String> keys = intentOrBundleLocalKeys.get(intentOrBundleLocalSymbol);
+
+
+                        if (keys == null) {
+                            keys = new ArrayList<String>();
+                        }
+
+                        keys.add(key);
+                        intentOrBundleLocalKeys.put(intentOrBundleLocalSymbol,keys);
+
+                    }
+                }
+
+                Map<String, String> extraDataFromIntent = new LinkedHashMap<>();
+                for (String expr : currPathCond) {
+                    //"(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))"
+                    Pattern p = Pattern.compile("\\(assert\\s+\\(=\\s+\\(fromIntent\\s+(\\S+)\\)\\s+(\\S+)\\)\\)");
+                    Matcher m = p.matcher(expr);
+                    while (m.find()) {
+
+                        String all = m.group(0);
+                        //System.out.println(all);
+                        String extraDataSymbol = m.group(1);
+
+                        //System.out.println(dataSymbol);
+//
+                        String intentSymbol = m.group(2);
+
+                        //System.out.println(intentSymbol);
+                        extraDataFromIntent.put(extraDataSymbol, intentSymbol);
+
+                    }
+
+                }
+
+
+                Set<Quartet<String, String, String, String>> tempIntentExtraData = new LinkedHashSet<Quartet<String, String, String, String>>();
+                Set<Quartet<String, String, String, String>> tempBundleExtraData = new LinkedHashSet<Quartet<String, String, String, String>>();
+                for (Map.Entry<String, String> entry : model.entrySet()) {//model里的是一个变量和一个值 变量=值
+
+                    String symbol = entry.getKey();
+                    String generatedValue = entry.getValue();//  symbol=generatedValue
+
+                    String key = extraDataMapKey.get(symbol);
+
+                    if (key != null)//symbol是extraData
+                    {
+
+                        String extraFrom = extraFromMap.get(symbol);
+
+                        if (extraFrom != null) {
+                            if (extraFrom.contains("Bundle"))//extraData from bundle
+                            {
+                                Local local = symbolLocalMap.get(symbol);
+                                if (local != null) {
+                                    Quartet<String,String,String,String> quartet=new Quartet<>("BundleKey",local.getType().toString(),key,generatedValue);
+                                    tempBundleExtraData.add(quartet);
+                                }
+
+                            } else if (extraFrom.contains("Intent"))//extraData from Intent
+                            {
+                                Local local = symbolLocalMap.get(symbol);
+                                if (local != null) {
+                                    Quartet<String, String, String, String> quartet = new Quartet<>("IntentKey", local.getType().toString(), key, generatedValue);
+                                    tempIntentExtraData.add(quartet);
+                                }
+
+
+                            } else {
+                                throw new RuntimeException("extraData is not from intent or bundle");
+                            }
+                        }
+
+                    }
+
+                    for(Quartet<String, String, String, String> intentExtra:tempIntentExtraData)
+                    {
+                        if(intentExtra.getValue1().equals("android.os.Bundle"))
+                        {
+                            String keyBundle=intentExtra.getValue2();
+
+                        }
+                    }
+                    for (String actionSymbol : intentActionSymbols.values()) {//-----------action的值求解---------
+                        if (actionSymbol.equals(symbol)) {
+                            action = generatedValue.replaceAll("^\"|\"$", "");// ^ Matches the beginning of the line.
+                        }
+                    }
+
+                }
+
+
+//                for (Map.Entry<String, String> entry : model.entrySet()) {//model里的是一个变量和一个值 变量=值
+//                    String symbol = entry.getKey();
+//                    String generatedValue = entry.getValue();
+//                    //logger.debug(symbol + ": " + generatedValue);
+//
+//                    Quartet<String, String, String, String> genDatum = generateDatum(symbol, generatedValue, extraLocalKeys);//获取extra的值
+//					/*if (genDatum == null) {
+//						logger.warn("Skipping generation of extra datum for " + symbol);
+//						continue;
+//					}*/
+//
+//                    Quartet<String, String, String, String> extraDatum = genDatum;//这个key -value不一定是intent的可能是bundle的，而这个bundle是intent的
+//                    if (extraDatum != null) {
+//                        extraData.add(extraDatum);
+//                    }
+//
+//                    for (String actionSymbol : intentActionSymbols.values()) {//-----------action的值求解---------
+//                        if (actionSymbol.equals(symbol)) {
+//                            action = generatedValue.replaceAll("^\"|\"$", "");// ^ Matches the beginning of the line.
+//                        }
+//                    }
+//                }
+
+                for (String expr : currPathCond) {
+                    Pattern p = Pattern.compile("\\(assert \\(exists \\(\\(index Int\\)\\) \\(= \\(select cats index\\) \\\"(.+)\\\"\\)\\)\\)");
+                    Matcher m = p.matcher(expr);
+                    while (m.find()) {
+                        String category = m.group(1);
+                        //logger.info("Found category: " + category);
+                        categories.add(category);
+                    }
+                }
+
+                // I cannot generate an Intent for an extra datum if I don't know it's type
+				/*for (String expr : currPathCond) {
+					Pattern p = Pattern.compile("\\(assert \\(exists \\(\\(index Int\\)\\) \\(= \\(select keys index\\) \\\"(.+)\\\"\\)\\)\\)");
+					Matcher m = p.matcher(expr);
+					while (m.find()) {
+						String key = m.group(1);
+						logger.info(("Found extra key: " + key));
+						Triplet<String,String,String> extraDatum = new Triplet(null,key,null);
+						extraData.add(extraDatum);
+					}
+				}*/
+                //logger.debug("");
+            }
+        } catch (Z3Exception e) {
+            e.printStackTrace();
+        }
+
+        Intent genIntent = new Intent();
+        genIntent.extras = new LinkedHashSet<>(extraData);
+        genIntent.action = action;
+        genIntent.categories = categories;
+        genIntent.targetComponent = method.getDeclaringClass().getName();
+
+        Intent modIntent = modifyGeneratedIntent(genIntent);
+
+        if (pathIntents.containsKey(currPath)) {
+            Intent prevIntent = pathIntents.get(currPath);
+            //logger.debug("Replacing " + prevIntent + " with " + modIntent);
+        }
+        pathIntents.put(currPath, modIntent);
+
+        return new Pair<Intent, Boolean>(modIntent, isPathFeasible);
+    }
+
+    protected Intent modifyGeneratedIntent(Intent genIntent) {
+        return genIntent;
+    }
+
+    public Quartet<String, String, String, String> generateDatum(String symbol, String generatedValue, Map<String, String> extraLocalKeys) {
+
+        Quartet<String, String, String, String> extraDatum = null;//
+
+
+        Local local = symbolLocalMap.get(symbol);
+        String key = extraLocalKeys.get(symbol);
+
+
+        if (local != null && key != null) {
+
+
+            String sourceOfExtra = extraFromMap.get(symbol);
+            if (sourceOfExtra != null) {
+                Local sourceOfExtraLocal = symbolLocalMap.get(sourceOfExtra);
+
+                if (sourceOfExtraLocal != null) {
+                    if (sourceOfExtraLocal.getType().toString().equals("android.content.Intent")) {
+                        extraDatum = new Quartet<String, String, String, String>("intentKey", local.getType().toString(), key, generatedValue.toString().replaceAll("^\"|\"$", ""));
+                    } else if (sourceOfExtraLocal.getType().toString().equals("android.os.Bundle")) {
+                        extraDatum = new Quartet<String, String, String, String>("bundleKey_" + symbolDefUnitMap.get(sourceOfExtra), local.getType().toString(), key, generatedValue.toString().replaceAll("^\"|\"$", ""));
+
+                    }
+                }
+
+            }
+
+
+        } else {
+            extraDatum = null;
+        }
+        return extraDatum;
+    }
+
+    Pair<Map<String, String>, Boolean> returnSatisfyingModel(Set<String> decls, Set<String> pathCond) throws Z3Exception {
+        return returnSatisfyingModelForZ3(decls, pathCond);
+    }
+
+    Pair<Map<String, String>, Boolean> returnSatisfyingModelForZ3(Set<String> decls, Set<String> pathCond) throws Z3Exception {
+        String pathCondFileName = null;
+        try {
+            pathCondFileName = Config.Z3_RUNTIME_SPECS_DIR + File.separator + "z3_path_cond";
+            PrintWriter out = new PrintWriter(pathCondFileName);
+            String outSpec = "";
+            outSpec += "(declare-datatypes () ((Object Null NotNull)))\n" +
+                    "(declare-fun containsKey (Object String) Bool)\n" +
+                    "(declare-fun containsKey (String String) Bool)\n" +
+                    "(declare-fun containsKey (Int String) Bool)\n" +
+                    "(declare-fun containsKey (Real String) Bool)\n" +
+
+                    "(declare-fun getAction (Object) String)\n" +
+
+                    "(declare-fun fromIntent (Object) Object)\n" +//extraData  FromIntent
+                    "(declare-fun fromIntent (String) Object)\n" +
+                    "(declare-fun fromIntent (Int) Object)\n" +
+                    "(declare-fun fromIntent (Real) Object)\n" +
+
+
+                    "(declare-fun fromBundle (Object) Object)\n" +
+                    "(declare-fun fromBundle (String) Object)\n" +
+                    "(declare-fun fromBundle (Int) Object)\n" +
+                    "(declare-fun fromBundle (Real) Object)\n" +
+
+                    "(declare-datatypes () ((ParamRef (mk-paramref (index Int) (type String) (method String)))))\n" +
+                    "(declare-fun hasParamRef (Object) ParamRef)\n" +
+                    "(declare-fun hasParamRef (String) ParamRef)\n" +
+                    "(declare-fun hasParamRef (Int) ParamRef)\n" +
+                    "(declare-fun hasParamRef (Real) ParamRef)\n" +
+
+                    "(declare-fun isNull (String) Bool)\n" +
+                    "(declare-fun isNull (Object) Bool)\n" +
+                    "(declare-fun oEquals (String Object) Bool)\n" +
+                    "(declare-fun oEquals (Object String) Bool)\n" +
+                    "(declare-const cats (Array Int String))\n" +
+                    "(declare-const keys (Array Int String))\n";
+            for (String d : decls) {
+                outSpec += d + "\n";
+            }
+            for (String c : pathCond) {
+                outSpec += c + "\n";
+            }
+            outSpec += "(check-sat-using (then qe smt))\n";
+            outSpec += "(get-model)\n";
+            //logger.debug("z3 specification sent to solver:");
+            //logger.debug(outSpec);
+            System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&finalSolve&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+            System.out.print(outSpec);
+            System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+            out.print(outSpec);
+
+            out.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+
+        ProcessBuilder pb = new ProcessBuilder("/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/z3-4.6.0-x64-ubuntu-16.04/bin/z3", pathCondFileName);
+
+        Process p = null;
+        String returnedOutput = null;
+        try {
+            p = pb.start();
+            int errCode = p.waitFor();
+
+            returnedOutput = convertStreamToString(p.getInputStream());
+            System.out.println(returnedOutput);
+
+            if (errCode != 0) {
+                String errorOut = convertStreamToString(p.getErrorStream());
+                System.out.println("errCode:" + errCode + "*" + errorOut + "*");
+            }
+
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        Map<String, String> model = new LinkedHashMap<String, String>();
+        Pattern pat = Pattern.compile("\\s+\\(define-fun\\s+(\\S+)\\s+\\(\\)\\s+\\w+\\s+(.+)(?=\\))");//取出常数放入model
+        //\\s+   多个空白（Matches the whitespace. Equivalent to [\t\n\r\f].）
+        //(\S+) ：m.group(1)  函数名
+        //  \\(\\)   （）
+        //  \\w+  多个Matches the word characters. 返回类型
+        //   (.+)  m.group(2)  .: Matches any single character except newline. Using m option allows it to match the newline as well.
+        //   (?=\\)) 最后是一个括号,不占匹配的字符
+        Matcher m = pat.matcher(returnedOutput);
+        while (m.find()) {
+            String symbol = m.group(1);
+            String value = m.group(2);
+            model.put(symbol, value);
+        }
+
+        String[] outLines = returnedOutput.split("\\n");
+        Boolean isSat = false;
+        for (String line : outLines) {
+            if (line.trim().equals("sat"))
+                isSat = true;
+        }
+        return new Pair<Map<String, String>, Boolean>(model, isSat);
+
+    }
+
+    static String convertStreamToString(java.io.InputStream is) {
+        java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");// \A表示字符串的开头 为了消除\的转义作用,多加一个\
+        return s.hasNext() ? s.next() : "";
+    }
+
+    class UnitPath {
+        Set<String> pathCond;
+        Set<String> decl;
+        Set<Unit> path;
+
+        public UnitPath(Set<String> currPathCond, Set<String> currDecls, Set<Unit> currPath) {
+            this.pathCond = currPathCond;
+            this.decl = currDecls;
+            this.path = currPath;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            UnitPath unitPath = (UnitPath) o;
+
+            if (!pathCond.equals(unitPath.pathCond)) return false;
+            if (!decl.equals(unitPath.decl)) return false;
+            return path.equals(unitPath.path);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = pathCond.hashCode();
+            result = 31 * result + decl.hashCode();
+            result = 31 * result + path.hashCode();
+            return result;
+        }
+
+        public Set<String> getPathCond() {
+            return pathCond;
+        }
+
+        public void setPathCond(Set<String> pathCond) {
+            this.pathCond = pathCond;
+        }
+
+        public Set<String> getDecl() {
+            return decl;
+        }
+
+        public void setDecl(Set<String> decl) {
+            this.decl = decl;
+        }
+
+        public Set<Unit> getPath() {
+            return path;
+        }
+
+        public void setPath(Set<Unit> path) {
+            this.path = path;
+        }
+    }
+
+    private void analysisPathIntraMethod(Set<Unit> path, SootMethod sootMethod, SimpleLocalDefs defs, CallGraph cg, IntentFlowAnalysis intentFlowAnalysis, Set<String> currPathCond, Set<String> currDecls) {
+
+
         for (Unit unit : path) {
             Stmt stmt = (Stmt) unit;
             if (stmt instanceof IfStmt) {
@@ -183,7 +721,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     }
                     Unit succ = currPathList.get(indexOfUnit - 1);
 
-                    handleIfStmt(ifStmt, path, sootMethod, cg, defs, currDecls, succ);
+                    Set<String> newExprs = handleIfStmt(ifStmt, path, sootMethod, cg, defs, currDecls, succ);
+                    currPathCond.addAll(newExprs);
+
                 }
 
             }
@@ -226,7 +766,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
-    private Pair<Set<String>, Set<String>> buildGetBundleData(Unit currUnit, SimpleLocalDefs defs, InstanceInvokeExpr ie, SootMethod method, Set<Unit> currPath) {
+    private Pair<Set<String>, Set<String>> buildGetBundleData(Unit currUnit, SimpleLocalDefs defs, InstanceInvokeExpr ie, SootMethod method, Set<Unit> currPath) {//ok
         Set<String> newDecls = new LinkedHashSet<String>();//currUnit:xxx=ie.get.*(arg1,arg2)   ie:android.os.Bundle
         Set<String> newAsserts = new LinkedHashSet<String>();
         Value arg1 = ie.getArg(0);
@@ -271,22 +811,47 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                             continue;
                                         }
 
-                                        if (currUnit instanceof DefinitionStmt) {//直接绕过了Bundle，是不对的，假如这个bundle只是从getStringBundle里取出来的//------------------------------------！！！！！！！
+                                        if (currUnit instanceof DefinitionStmt) {
                                             DefinitionStmt defStmt = (DefinitionStmt) currUnit;////currUnit:xxx=ie.get.*(arg1,arg2)   ie:android.os.Bundle
                                             if (defStmt.getLeftOp() instanceof Local) {//
-                                                Local extraLocal = (Local) defStmt.getLeftOp();//extraLocal 是xxx
+                                                Local extraLocal = (Local) defStmt.getLeftOp();//extraLocal 是xxx,保存extra值的变量
                                                 String extraLocalSymbol = createSymbol(extraLocal, method, defStmt);
                                                 symbolLocalMap.put(extraLocalSymbol, extraLocal);
+                                                symbolDefUnitMap.put(extraLocalSymbol, defStmt);
                                                 String intentSymbol = createSymbol(intentLocal, method, intentDef);//包括intent在哪个位置定义的（什么类，什么方法，方法中哪个位置）
                                                 symbolLocalMap.put(intentSymbol, intentLocal);
+                                                symbolDefUnitMap.put(intentSymbol, intentDef);
+                                                String bundleLocalSymbol = createSymbol(bundleLocal, method, bundleDef);
+                                                symbolLocalMap.put(bundleLocalSymbol, bundleLocal);
+                                                symbolDefUnitMap.put(bundleLocalSymbol, bundleDef);
                                                 String newExtraType = getZ3Type(extraLocal.getType());
                                                 String newIntentType = getZ3Type(intentLocal.getType());
                                                 newDecls.add("(declare-const " + extraLocalSymbol + " " + newExtraType + " )");
                                                 newDecls.add("(declare-const " + intentSymbol + " " + newIntentType + " )");
-                                                newAsserts.add("(assert (= (containsKey " + extraLocalSymbol + " \"" + keyStrConst.value + "\") true))");
-                                                newAsserts.add("(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))");
 
-                                                //addIntentExtraForPath(currPath, keyStrConst.value, newExtraType);
+                                                if (iie.getMethod().getName().equals("getExtras")) {
+                                                    newAsserts.add("(assert (= (containsKey " + intentSymbol + " \"" + keyStrConst.value + "\") true))");
+                                                    newAsserts.add("(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))");
+                                                    extraFromMap.put(extraLocalSymbol, intentSymbol);
+                                                    extraDataMapKey.put(extraLocalSymbol, keyStrConst.value);
+                                                } else if (iie.getMethod().getName().equals("getBundleExtra")) {//已经在intent get*Extra做过了bundeldata=intent.getBundleExtra()
+
+                                                    newAsserts.add("(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyStrConst.value + "\") true))");
+                                                    extraFromMap.put(extraLocalSymbol, bundleLocalSymbol);
+                                                    extraDataMapKey.put(extraLocalSymbol, keyStrConst.value);
+                                                    newAsserts.add("(assert (= (fromBundle " + extraLocalSymbol + ") " + bundleLocalSymbol + "))");
+
+//                                                    extraFromMap.put(bundleLocalSymbol, intentSymbol);//已经被做过了
+//                                                    Value getBundleExtraArg=iie.getArg(0);
+//                                                    if(getBundleExtraArg instanceof StringConstant)
+//                                                    {
+//
+//                                                        extraDataMapKey.put(bundleLocalSymbol,((StringConstant) getBundleExtraArg).value);
+//                                                    }
+//                                                    newAsserts.add("(assert (= (fromIntent " + bundleLocalSymbol + ") " + intentSymbol + "))");
+
+                                                }
+
 
                                                 buildParamRefExpressions(method, currPath, newAsserts, newDecls, intentDef, intentSymbol);
                                             }
@@ -303,7 +868,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return new Pair<Set<String>, Set<String>>(newDecls, newAsserts);
     }
 
-    private Pair<Set<String>, Set<String>> buildGetExtraData(Unit currUnit, SimpleLocalDefs defs, InstanceInvokeExpr ie, SootMethod method, Set<Unit> currPath) {
+    private Pair<Set<String>, Set<String>> buildGetExtraData(Unit currUnit, SimpleLocalDefs defs, InstanceInvokeExpr ie, SootMethod method, Set<Unit> currPath) {//ok
         Set<String> newDecls = new LinkedHashSet<String>();
         Set<String> newAsserts = new LinkedHashSet<String>();
         Value arg1 = ie.getArg(0);
@@ -343,15 +908,19 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             Local extraLocal = (Local) defStmt.getLeftOp();
                             String extraLocalSymbol = createSymbol(extraLocal, method, defStmt);
                             symbolLocalMap.put(extraLocalSymbol, extraLocal);
+                            symbolDefUnitMap.put(extraLocalSymbol, defStmt);
                             String intentSymbol = createSymbol(intentLocal, method, intentDef);
                             symbolLocalMap.put(intentSymbol, intentLocal);
+                            symbolDefUnitMap.put(intentSymbol, intentDef);
                             String newExtraType = getZ3Type(extraLocal.getType());
                             String newIntentType = getZ3Type(intentLocal.getType());
                             newDecls.add("(declare-const " + extraLocalSymbol + " " + newExtraType + " )");
                             newDecls.add("(declare-const " + intentSymbol + " " + newIntentType + " )");
-                            newAsserts.add("(assert (= (containsKey " + extraLocalSymbol + " \"" + keyStrConst.value + "\") true))");
-                            newAsserts.add("(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))");
 
+                            newAsserts.add("(assert (= (containsKey " + intentSymbol + " \"" + keyStrConst.value + "\") true))");
+                            newAsserts.add("(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))");
+                            extraFromMap.put(extraLocalSymbol, intentSymbol);
+                            extraDataMapKey.put(extraLocalSymbol, keyStrConst.value);
                             //addIntentExtraForPath(currPath, keyStrConst.value, newExtraType);
 
 
@@ -412,21 +981,20 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                     throw new RuntimeException("isDefInPathAndLatest工作不正常");
                                 }
 
-                                //String getActionSymbol = createSymbol(leftLocal, method, intentDef);
-                                //symbolLocalMap.put(getActionSymbol, intentLocal);
+                                String getActionSymbol = createSymbol(leftLocal, method, intentDef);
+                                symbolLocalMap.put(getActionSymbol, intentLocal);
                                 String intentSymbol = createSymbol(intentLocal, method, intentDef);
-                                //symbolLocalMap.put(intentSymbol, intentLocal);
+                                symbolLocalMap.put(intentSymbol, intentLocal);
 
                                 String intentDecl = "(declare-const " + intentSymbol + " Object )";
                                 String actionRefDecl = "(declare-const " + actionRefSymbol + " String )";
-                                //String getActionDecl = "(declare-const " + actionRefSymbol + " String )";
+
                                 currDecls.add(intentDecl);
                                 currDecls.add(actionRefDecl);
-                                //currDecls.add(getActionDecl);
+
                                 String getActionAssert = "(assert (= (getAction " + intentSymbol + ") " + actionRefSymbol + "))";
-                                String newFromIntent = "(assert (= (fromIntent " + actionRefSymbol + ") " + intentSymbol + "))";
+
                                 currPathCond.add(getActionAssert);
-                                currPathCond.add(newFromIntent);
 
 
                                 buildParamRefExpressions(method, currPath, currPathCond, currDecls, intentDef, intentSymbol);//intent的来源参数的话，再加一些decl,assert
@@ -505,7 +1073,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return returnStr;
     }
 
-    private boolean isDefInPathAndLatest(Set<Unit> path, Unit inDef, Local usedLocal, Unit usedUnit, SimpleLocalDefs defs) {
+    private boolean isDefInPathAndLatest(Set<Unit> path, Unit inDef, Local usedLocal, Unit usedUnit, SimpleLocalDefs defs) {//---------------------------------------
         if (path.contains(inDef)) { // does the path contain the definition
             for (Unit otherDef : defs.getDefsOfAt(usedLocal, usedUnit)) { // check other defs of usedLocal at usedUnit to determine if inDef is the latestDef in path
                 if (inDef.equals(otherDef)) { // continue if inDef equals otherDef
@@ -573,74 +1141,161 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                 if (defUnitConditionLeft instanceof DefinitionStmt) {//defUnitConditionLeft是定义if语句左边变量的语句  9484/9484
                     DefinitionStmt defDefintionStmtConditionLeft = (DefinitionStmt) defUnitConditionLeft;
-                    if (defDefintionStmtConditionLeft.getRightOp() instanceof JVirtualInvokeExpr) {//  7726/9484   只分析这个
-                        JVirtualInvokeExpr jVInvokeExpr = (JVirtualInvokeExpr) defDefintionStmtConditionLeft.getRightOp();
+
+                    if (opVal1.getType() instanceof ByteType) {//ByteType    $b0= 3>5   $b0就为ByteType
+
+                        Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> condValuesPair = findLeftAndRightValuesOfByteVal(sootMethod, defs, ifStmt, opVal1, path);
+                        Quartet<Value, String, String, Unit> left = condValuesPair.getValue0();
+                        Quartet<Value, String, String, Unit> right = condValuesPair.getValue1();
+                        opVal1 = left.getValue0();
+                        opVal2 = right.getValue0();
+                        if (left.getValue1() != null)
+                            decls.add(left.getValue1());
+                        if (right.getValue1() != null)
+                            decls.add(right.getValue1());
+                        if (left.getValue2() != null) {
+                            opVal1Assert = left.getValue2();
+                        }
+                        if (right.getValue2() != null) {
+                            opVal2Assert = right.getValue2();
+                        }
+                        opVal1DefUnit = left.getValue3();
+                        opVal2DefUnit = right.getValue3();
+                    } else
 
                         //基本类型
-
                         //if (conditionLeft.getType() instanceof PrimType) {
-
                         if (conditionLeft.getType().toString().equals("boolean")) {// 5196/7726
 
-
-                            Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> pair_quartet_left_and_right = findEqualsBoolean(ifStmt, path, sootMethod, defs, defDefintionStmtConditionLeft, jVInvokeExpr);
-                            Quartet<Value, String, String, Unit> leftValue = pair_quartet_left_and_right.getValue0();
-                            Quartet<Value, String, String, Unit> rightValue = pair_quartet_left_and_right.getValue1();//注意 equals fallthough 没有判定，ifStmt约束还没有生成，所以其generateCondExpr为true
-
-                            if (leftValue == null && rightValue == null) {
-                                pair_quartet_left_and_right = findIntentBooleanValues(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, defDefintionStmtConditionLeft);
+                            if (defDefintionStmtConditionLeft.getRightOp() instanceof JVirtualInvokeExpr) {//  7726/9484   只分析这个
+                                JVirtualInvokeExpr jVInvokeExpr = (JVirtualInvokeExpr) defDefintionStmtConditionLeft.getRightOp();
 
 
-                                if (pair_quartet_left_and_right == null) {
-                                    pair_quartet_left_and_right = findBundleValues(sootMethod, defs, ifStmt, conditionLeft, path);//if match this case  leftValue！=null  rightValue=null
-                                    leftValue = pair_quartet_left_and_right.getValue0();
+                                Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> pair_quartet_left_and_right = findEqualsBoolean(ifStmt, path, sootMethod, defs, defDefintionStmtConditionLeft, jVInvokeExpr);
+                                Quartet<Value, String, String, Unit> leftValue = pair_quartet_left_and_right.getValue0();
+                                Quartet<Value, String, String, Unit> rightValue = pair_quartet_left_and_right.getValue1();//注意 equals fallthough 没有判定，ifStmt约束还没有生成，所以其generateCondExpr为true
 
-                                    if (leftValue == null) {
+                                if (leftValue == null && rightValue == null) {
+                                    pair_quartet_left_and_right = findIntentBooleanValues(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, defDefintionStmtConditionLeft);
 
 
-                                    } else//BundleValue
+                                    if (pair_quartet_left_and_right == null) {
+                                        pair_quartet_left_and_right = findBundleValues(sootMethod, defs, ifStmt, conditionLeft, path);//if match this case  leftValue！=null  rightValue=null
+                                        leftValue = pair_quartet_left_and_right.getValue0();
+                                        rightValue = pair_quartet_left_and_right.getValue1();
+                                        if (leftValue == null) {//都不满足
+
+
+                                            findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
+                                            opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
+                                            opVal2DefUnit = getDefOfValInPath(opVal2, ifStmt, path, defs);
+
+
+                                        } else//BundleValue
+                                        {
+                                            generateCondExpr = false;
+
+                                            if (leftValue != null) {
+                                                if (leftValue.getValue1() != null) {
+                                                    decls.add(leftValue.getValue1());
+                                                }
+
+
+                                                opVal1Assert = leftValue.getValue2();
+
+                                                opVal1DefUnit = leftValue.getValue3();
+
+                                            }
+
+                                            if (rightValue != null) {
+                                                if (rightValue.getValue1() != null) {
+                                                    decls.add(rightValue.getValue1());
+                                                }
+
+
+                                                opVal2Assert = leftValue.getValue2();
+
+
+                                                opVal2DefUnit = leftValue.getValue3();
+                                            }
+
+                                        }
+                                    } else//IntentBooleanValues
                                     {
                                         generateCondExpr = false;
+
+                                        leftValue = pair_quartet_left_and_right.getValue0();
+                                        rightValue = pair_quartet_left_and_right.getValue1();
+
+                                        if (leftValue != null) {
+                                            if (leftValue.getValue1() != null) {
+                                                decls.add(leftValue.getValue1());
+                                            }
+
+
+                                            opVal1Assert = leftValue.getValue2();
+
+                                            opVal1DefUnit = leftValue.getValue3();
+
+                                        }
+
+                                        if (rightValue != null) {
+                                            if (rightValue.getValue1() != null) {
+                                                decls.add(rightValue.getValue1());
+                                            }
+
+
+                                            opVal2Assert = leftValue.getValue2();
+
+
+                                            opVal2DefUnit = leftValue.getValue3();
+                                        }
+
                                     }
-                                } else//IntentBooleanValues
+
+
+                                } else //equals
                                 {
-                                    generateCondExpr = false;
+                                    opVal1 = leftValue.getValue0();
+
+                                    opVal2 = rightValue.getValue0();
+
+                                    if (opVal1 == null && opVal2 == null) {
+
+                                        throw new RuntimeException("equals异常");
+                                        //findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);//其实也没用
+                                    } else {
+
+
+                                        if (leftValue != null) {
+                                            if (leftValue.getValue1() != null) {
+                                                decls.add(leftValue.getValue1());
+                                            }
+
+
+                                            opVal1Assert = leftValue.getValue2();
+
+                                            opVal1DefUnit = leftValue.getValue3();
+
+                                        }
+
+                                        if (rightValue != null) {
+                                            if (rightValue.getValue1() != null) {
+                                                decls.add(rightValue.getValue1());
+                                            }
+
+
+                                            opVal2Assert = leftValue.getValue2();
+
+
+                                            opVal2DefUnit = leftValue.getValue3();
+                                        }
+
+
+                                    }
+
+
                                 }
-
-
-                            } else //equals
-                            {
-                                opVal1 = leftValue.getValue0();
-
-                                opVal2 = rightValue.getValue0();
-
-                                if(opVal1==null&&opVal2==null)
-                                {
-                                    findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);//其实也没用
-                                }
-                                else
-                                {
-                                    decls.add(leftValue.getValue1());
-
-                                    opVal1Assert = leftValue.getValue2();
-
-                                    opVal1DefUnit = leftValue.getValue3();
-
-
-
-
-                                    decls.add(rightValue.getValue1());
-
-                                    opVal2Assert = leftValue.getValue2();
-
-
-                                    opVal2DefUnit = leftValue.getValue3();
-
-                                }
-
-
-
-                            }
 
 
 //                                if (leftValue == null) {
@@ -681,12 +1336,13 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                                }
 //
 //
-                        }
+                            }
+
 //
 //
 //                        }
 
-                        //对象类型
+                            //对象类型
 
 //                        else if (conditionLeft.getType() instanceof RefLikeType) {
 //
@@ -710,18 +1366,24 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                            }
 //
 //                        }
-                        else {
+
+                            else {
+
+                                findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
+                                opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
+                                opVal2DefUnit = getDefOfValInPath(opVal2, ifStmt, path, defs);
+
+                            }
+
+
+                        } else {
 
                             findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
                             opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
                             opVal2DefUnit = getDefOfValInPath(opVal2, ifStmt, path, defs);
+
                         }
 
-
-                    } else//不考虑
-                    {
-                        System.out.println(defDefintionStmtConditionLeft);
-                    }
 
                 }
 
@@ -736,31 +1398,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             return returnExprs;
         }
 
-        String opExpr1 = null;
-        String opExpr2 = null;
-        try {
-            if (opVal1 == null) {
-                //logger.debug("Could not resolve opVal1, so setting it to true");
-                opExpr1 = "";
-            } else {
-                opExpr1 = createZ3Expr(opVal1, ifStmt, opVal1DefUnit, sootMethod, decls);
-            }
-
-            if (opVal2 == null) {
-                //logger.debug("Could not resolve opVal2, so setting it to true");
-                opExpr2 = "";
-            } else {
-                opExpr2 = createZ3Expr(opVal2, ifStmt, opVal2DefUnit, sootMethod, decls);
-            }
-        } catch (RuntimeException e) {
-            //logger.warn("caught exception: ", e);
-            return null;
-        }
-
-        if (opExpr1 == opExpr2 && opExpr1 == null) {//---------------------------------
-            //logger.debug("op1 and op2 are both null, so just returning true expression");
-            return Collections.singleton(returnExpr);
-        }
 
         // if the curr unit to convert is an ifStmt ensure the symbol is not negated //如果要转换的curr单位是ifStmt，则确保该符号不是否定的
         boolean isFallThrough = isFallThrough(ifStmt, succUnit);
@@ -782,6 +1419,31 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
         if (generateCondExpr) {
+            String opExpr1 = null;
+            String opExpr2 = null;
+            try {
+                if (opVal1 == null) {
+                    //logger.debug("Could not resolve opVal1, so setting it to true");
+                    opExpr1 = "";
+                } else {
+                    opExpr1 = createZ3Expr(opVal1, ifStmt, opVal1DefUnit, sootMethod, decls);
+                }
+
+                if (opVal2 == null) {
+                    //logger.debug("Could not resolve opVal2, so setting it to true");
+                    opExpr2 = "";
+                } else {
+                    opExpr2 = createZ3Expr(opVal2, ifStmt, opVal2DefUnit, sootMethod, decls);
+                }
+            } catch (RuntimeException e) {
+                //logger.warn("caught exception: ", e);
+                return null;
+            }
+
+            if (opExpr1 == opExpr2 && opExpr1 == null) {//---------------------------------
+                //logger.debug("op1 and op2 are both null, so just returning true expression");
+                return Collections.singleton(returnExpr);
+            }
             returnExpr = buildZ3CondExpr(opExpr1, opExpr2, branchSensitiveSymbol);
             returnExprs.add(returnExpr);
         }
@@ -814,6 +1476,38 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     public void findKeysForLeftAndRightValues(Unit currUnit, Value opVal1, Value opVal2, SimpleLocalDefs defs, Set<Unit> currPath) {
         findKeyForVal(currUnit, opVal1, defs, currPath);
         findKeyForVal(currUnit, opVal2, defs, currPath);
+    }
+
+    public Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> findLeftAndRightValuesOfByteVal(SootMethod method, SimpleLocalDefs defs, Unit inUnit, Value value, Set<Unit> currPath) {
+        Quartet<Value, String, String, Unit> leftVal = null;
+        Quartet<Value, String, String, Unit> rightVal = null;
+        if (value instanceof Local) {
+            Local local = (Local) value;
+            if (local.getType() instanceof ByteType) {
+                List<Unit> potentialCmpUnits = defs.getDefsOfAt(local, inUnit);
+                for (Unit potentialCmpUnit : potentialCmpUnits) {
+					/*if (!currPath.contains(potentialCmpUnit)) {
+						continue;
+					}*/
+                    if (!isDefInPathAndLatest(currPath, potentialCmpUnit, local, inUnit, defs)) {
+                        continue;
+                    }
+                    if (potentialCmpUnit.toString().contains("cmp")) {
+                        //logger.debug("Found potential cmp* statement: " + potentialCmpUnit);
+                        if (potentialCmpUnit instanceof DefinitionStmt) {
+                            DefinitionStmt defStmt = (DefinitionStmt) potentialCmpUnit;
+                            Value rightOp = defStmt.getRightOp();
+                            if (rightOp instanceof AbstractJimpleIntBinopExpr) {
+                                AbstractJimpleIntBinopExpr cmpExpr = (AbstractJimpleIntBinopExpr) rightOp;
+                                leftVal = findOriginalVal(method, defs, potentialCmpUnit, cmpExpr.getOp1(), currPath);
+                                rightVal = findOriginalVal(method, defs, potentialCmpUnit, cmpExpr.getOp2(), currPath);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return new Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>>(leftVal, rightVal);
     }
 
     public void findKeyForVal(Unit currUnit, Value opVal, SimpleLocalDefs defs, Set<Unit> currPath) {
@@ -942,6 +1636,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (defStmt.getLeftOp() == opVal) {
                 symbol = createSymbol(opVal, method, defStmt);
                 symbolLocalMap.put(symbol, opLocal);
+                symbolDefUnitMap.put(symbol, defStmt);
                 localSymbolMap.put(opLocal, symbol);
             }
 
@@ -949,6 +1644,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (symbol == null) {
                 symbol = createSymbol(opVal, method, defUnit);
                 symbolLocalMap.put(symbol, opLocal);
+                symbolDefUnitMap.put(symbol, defStmt);
                 localSymbolMap.put(opLocal, symbol);
             }
 
@@ -1090,6 +1786,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                             }
                                             String intentSymbol = createSymbol(intentLocal, method, intentDef);
                                             symbolLocalMap.put(intentSymbol, intentLocal);
+                                            localSymbolMap.put(intentLocal, intentSymbol);
+                                            symbolDefUnitMap.put(intentSymbol, intentDef);
 
                                             String category = null;
                                             if (jviExpr.getArg(0) instanceof StringConstant) {
@@ -1131,11 +1829,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> findIntentBooleanValues(SootMethod sootMethod, SimpleLocalDefs defs, IfStmt ifStmt, Value conditionLeft, Set<Unit> path, JVirtualInvokeExpr jVInvokeExpr, DefinitionStmt definitionStmtConditionLeft) {
 
 
-        if (Pattern.matches("hasExtra", jVInvokeExpr.getMethod().getName())) {
+        if (Pattern.matches("hasExtra", jVInvokeExpr.getMethod().getName())) {//ok
 
             return intentHasExtra(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, definitionStmtConditionLeft);
 
-        } else if (Pattern.matches("hasCategory", jVInvokeExpr.getMethod().getName())) {
+        } else if (Pattern.matches("hasCategory", jVInvokeExpr.getMethod().getName())) {//ok
             return findCategories(sootMethod, defs, ifStmt, conditionLeft, path);
         }
 
@@ -1168,7 +1866,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         if (Pattern.matches("hasExtra", jVInvokeExpr.getMethod().getName())) {
 
-            if (jVInvokeExpr.getMethod().getClass().getName().equals("android.content.Intent")) {
+            if (jVInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.content.Intent")) {
 
 
                 Value origValue = null;
@@ -1193,6 +1891,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 assert count == 1;
                 String intentLocalSymbol = createSymbol(intentLocal, sootMethod, defOrigValueUnit);//intent 的定义语句
                 symbolLocalMap.put(intentLocalSymbol, intentLocal);
+                symbolDefUnitMap.put(intentLocalSymbol, defOrigValueUnit);
                 localSymbolMap.put(intentLocal, intentLocalSymbol);
                 newDecl = "(declare-const " + intentLocalSymbol + " Object )";
                 newAssert = "(assert (= " + intentLocalSymbol + " NotNull))";
@@ -1218,12 +1917,33 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     Unit succ = currPathList.get(currPathList.indexOf(ifStmt) - 1);
 
                     boolean isFallThrough = isFallThrough(ifStmt, succ);
+                    ConditionExpr conditionExpr = (ConditionExpr) ifStmt.getCondition();
+
                     if (isFallThrough) { // then intent contains the key
-                        newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
+
+                        if (conditionExpr.getSymbol().toString().equals(" == ")) {
+                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
+                        } else {
+                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
+                        }
+
+
                         //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
                     } else { // the intent does NOT contain the key
-                        newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";//----------------------------这里这样写有毛病吗？
+                        if (conditionExpr.getSymbol().toString().equals(" == ")) {
+                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
+                        } else {
+                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
+                        }
+
                     }
+//                    if (isFallThrough) { // intent contains the extra
+//                        newAssert += "\n"+"(assert (exists ((index Int)) (= (select keys index) \"" + keyString + "\")))";
+//
+//                        //addIntentExtraForPath(currPath, rightVal.getValue0().toString(), rightVal.getValue0().getType().toString());
+//                    } else { // intent does not contain the extra
+//                        newAssert += "\n"+"(assert (forall ((index Int)) (not(= (select keys index) \"" + keyString + "\"))))";
+//                    }
                 }
 
                 leftVal = new Quartet<Value, String, String, Unit>(origValue, newDecl, newAssert, defOrigValueUnit);
@@ -1234,78 +1954,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return new Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>>(leftVal, rightVal);
     }
 
-    private Quartet<Value, String, String, Unit> findStringSource(JVirtualInvokeExpr jVInvokeExpr, IfStmt ifStmt, String intentLocalSymbol, SootMethod sootMethod, Set<Unit> path) {
-        String keyString = null;
 
-        Value origValue = null;
-        Unit defOrigValueUnit = null;
-
-        String newDecl = null;
-        String newAssert = null;
-
-
-        if (jVInvokeExpr.getArg(0) instanceof StringConstant) {
-            keyString = ((StringConstant) (((StringConstant) jVInvokeExpr.getArg(0)))).value;
-
-
-        } else if (jVInvokeExpr.getArg(0) instanceof Local) {
-            Local keyLocal = (Local) (jVInvokeExpr.getArg(0));// -------------------------------------
-
-
-        } else {
-            throw new RuntimeException("unhandle case :" + jVInvokeExpr.toString());
-        }
-
-        if (keyString != null) {
-            Body b = sootMethod.getActiveBody();
-            UnitGraph ug = new BriefUnitGraph(b);
-            List<Unit> currPathList = new ArrayList<Unit>(path);
-            Unit succ = currPathList.get(currPathList.indexOf(ifStmt) - 1);
-
-            boolean isFallThrough = isFallThrough(ifStmt, succ);
-            if (isFallThrough) { // then intent contains the key
-                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
-                //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
-            } else { // the intent does NOT contain the key
-                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
-            }
-        }
-
-        return new Quartet<Value, String, String, Unit>(origValue, newDecl, newAssert, defOrigValueUnit);
-
-
-    }
-
-    private Quartet<Value, String, String, Unit> findIntentLocalDef(Set<Unit> path, SimpleLocalDefs defs, DefinitionStmt defDefintionStmtConditionLeft, JVirtualInvokeExpr jVInvokeExpr, SootMethod sootMethod) {
-        Value origValue = null;
-        Unit defOrigValueUnit = null;
-
-        String newDecl = null;
-        String newAssert = null;
-
-        Local intentLocal = (Local) jVInvokeExpr.getBase();
-        int count = 0;
-
-        for (Unit defIntentLocalUnit : defs.getDefsOfAt(intentLocal, defDefintionStmtConditionLeft)) {
-            if (!isDefInPathAndLatest(path, defIntentLocalUnit, intentLocal, defDefintionStmtConditionLeft, defs)) {
-                continue;
-            }
-            origValue = intentLocal;
-            defOrigValueUnit = defIntentLocalUnit;
-            count = count + 1;
-
-
-        }
-        assert count == 1;
-        String intentLocalSymbol = createSymbol(intentLocal, sootMethod, defOrigValueUnit);//intent 的定义语句
-        symbolLocalMap.put(intentLocalSymbol, intentLocal);
-        localSymbolMap.put(intentLocal, intentLocalSymbol);
-        newDecl = "(declare-const " + intentLocalSymbol + " Object )";
-        newAssert = "(assert (= " + intentLocalSymbol + " NotNull))";
-        return new Quartet<Value, String, String, Unit>(origValue, newDecl, newAssert, defOrigValueUnit);
-    }
-
-    private Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> findBundleValues(SootMethod method, SimpleLocalDefs defs, Unit inUnit, Value value, Set<Unit> currPath) {
+    private Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> findBundleValues(SootMethod method, SimpleLocalDefs defs, IfStmt inUnit, Value value, Set<Unit> currPath) {
         Quartet<Value, String, String, Unit> leftVal = null;
         Quartet<Value, String, String, Unit> rightVal = null;
         if (value instanceof Local) {
@@ -1315,7 +1965,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 					/*if (!currPath.contains(defUnit)) {
 						continue;
 					}*/
-                    if (!isDefInPathAndLatest(currPath, defUnit, local, inUnit, defs)) {
+                    if (!isDefInPathAndLatest(currPath, defUnit, local, inUnit, defs)) {//ok
                         continue;
                     }
 
@@ -1345,7 +1995,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                     if (bundleStmt.getInvokeExpr() instanceof InstanceInvokeExpr) {
                                                         InstanceInvokeExpr bundleInvoke = (InstanceInvokeExpr) bundleStmt.getInvokeExpr();
                                                         if (bundleInvoke.getMethod().getDeclaringClass().getName().equals("android.content.Intent")) {
-                                                            if (bundleInvoke.getMethod().getName().equals("getExtras")) {
+                                                            if (bundleInvoke.getMethod().getName().equals("getExtras")) {//
                                                                 if (bundleInvoke.getBase() instanceof Local) {
                                                                     Local intentLocal = (Local) bundleInvoke.getBase();
                                                                     for (Unit intentDef : defs.getDefsOfAt(intentLocal, bundleStmt)) {
@@ -1356,40 +2006,80 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                             continue;
                                                                         }
                                                                         String intentLocalSymbol = createSymbol(intentLocal, method, intentDef);//intent 的定义语句
-                                                                        symbolLocalMap.put(intentLocalSymbol, intentLocal);
+
+//                                                                        symbolLocalMap.put(intentLocalSymbol, intentLocal);//已经做了
+//                                                                        localSymbolMap.put(intentLocal,intentLocalSymbol);
+//                                                                        symbolDefUnitMap.put(intentLocalSymbol, intentDef);
+
                                                                         String newDecl = "(declare-const " + intentLocalSymbol + " Object )";
                                                                         String newAssert = "(assert (= " + intentLocalSymbol + " NotNull))";
 
-                                                                        Body b = method.getActiveBody();
-                                                                        UnitGraph ug = new BriefUnitGraph(b);
+
                                                                         List<Unit> currPathList = new ArrayList<Unit>(currPath);
                                                                         Unit succ = currPathList.get(currPathList.indexOf(inUnit) - 1);
 
                                                                         boolean isFallThrough = isFallThrough(inUnit, succ);
-                                                                        if (isFallThrough) { // then intent contains the key
-                                                                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";//getExtras是将intent的extra data converted into bundle ,so assert is about intent
-                                                                            //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
+                                                                        ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
+                                                                        if (isFallThrough) { // then intent contains the key   //
+                                                                            if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";//getExtras是将intent的extra data converted into bundle ,so assert is about intent
+                                                                            } else {
+                                                                                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
+                                                                            }
+
+
                                                                         } else { // the intent does NOT contain the key
-                                                                            newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
+                                                                            if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
+
+                                                                            } else {
+                                                                                newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";//getExtras是将intent的extra data converted into bundle ,so assert is about intent
+                                                                            }
                                                                         }
 
-                                                                        leftVal = new Quartet<Value, String, String, Unit>(intentLocal, newDecl, newAssert, intentDef);//感觉这个值没多大意义，因为其不会用，已经生成了if语句的表达式，感觉这个也不对！
+                                                                        leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
                                                                     }
                                                                 }
-                                                            } else if (bundleInvoke.getMethod().getName().equals("getBundleExtra"))//43个------------------------这里表明bundle是从intent的getBundleExtra取出来，这里intent的约束已经再处理
+                                                            } else if (bundleInvoke.getMethod().getName().equals("getBundleExtra"))//43个------------------------这里表明bundle是从intent的getBundleExtra取出来，这里intent的getBundleExtra约束已经再处理
                                                             {
-                                                                String key = extractKeyFromIntentExtra((DefinitionStmt) bundleStmt, defs, currPath);
 
-                                                                String newDecl=null;
+                                                                String bundleLocalSymbol = createSymbol(bundleLocal, method, bundleDef);//
 
-                                                                String newAssert=null;
+//                                                                symbolLocalMap.put(bundleLocalSymbol, bundleLocal);
+//                                                                symbolDefUnitMap.put(bundleLocalSymbol, bundleDef);已经做了
 
-                                                                valueKeyMap.put(((DefinitionStmt) bundleStmt).getLeftOp(), key);//intent 有这个key的bundle
+                                                                String newDecl = "(declare-const " + bundleLocalSymbol + " Object )";
+                                                                String newAssert = "(assert (= " + bundleLocalSymbol + " NotNull))";
 
-                                                                leftVal = new Quartet<Value, String, String, Unit>(value, newDecl, newAssert, defUnit);//--------------------------
+                                                                List<Unit> currPathList = new ArrayList<Unit>(currPath);
+                                                                Unit succ = currPathList.get(currPathList.indexOf(inUnit) - 1);
+
+                                                                boolean isFallThrough = isFallThrough(inUnit, succ);
+                                                                ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
+                                                                if (isFallThrough) { // then intent contains the key
+                                                                    if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                        newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") true))";
+                                                                    } else {
+                                                                        newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") false))";
+                                                                    }
+
+                                                                    //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
+                                                                } else { // the intent does NOT contain the key
+
+                                                                    if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                        newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") false))";
+                                                                    } else {
+
+                                                                        newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") true))";
+
+                                                                    }
 
 
-                                                                throw new RuntimeException("getBundleExtra");
+                                                                }
+
+
+                                                                leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
+
 
                                                             }
 
@@ -1398,22 +2088,39 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                 }
                                             }
                                         }
-                                    } else if (keyVal instanceof Local)//------------------------------------------------
+                                    } else if (keyVal instanceof Local)//------------------------------------------------写一个专门抽取函数
                                     {
 
                                     }
-                                } else if (ie.getMethod().getName().equals("getBoolean"))//----------------------------------
-                                {
-                                    String key = extractKeyFromIntentExtra((DefinitionStmt) defStmt, defs, currPath);
+                                } else if (ie.getMethod().getName().equals("getBoolean")) {
+                                    String booleanValueSymbol = createSymbol(value, method, defStmt);
+                                    List<Unit> currPathList = new ArrayList<Unit>(currPath);
+                                    Unit succ = currPathList.get(currPathList.indexOf(inUnit) - 1);
+                                    String newDecl = "(declare-const " + booleanValueSymbol + " Bool )";
+                                    String newAssert = null;
+                                    boolean isFallThrough = isFallThrough(inUnit, succ);
+                                    ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
+                                    if (isFallThrough) { // then intent contains the key
 
-                                    String newDecl=null;
+                                        if (conditionExpr.getSymbol().equals(" == ")) {
+                                            newAssert = "(assert (=" + booleanValueSymbol + " true))";
+                                        } else {
+                                            newAssert = "(assert (=" + booleanValueSymbol + " false))";
+                                        }
 
-                                    String newAssert=null;
 
-                                    valueKeyMap.put(value, key);//intent 有这个key的bundle
+                                        //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
+                                    } else { // the intent does NOT contain the key
+                                        if (conditionExpr.getSymbol().equals(" == ")) {
+                                            newAssert = "(assert (=" + booleanValueSymbol + " false))";
 
-                                    leftVal = new Quartet<Value, String, String, Unit>(value, newDecl, newAssert, defUnit);//--------------------------
-                                    throw new RuntimeException("getBoolean");
+                                        } else {
+                                            newAssert = "(assert (=" + booleanValueSymbol + " true))";
+                                        }
+                                    }
+
+                                    leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
+
                                 }
                             }
                         }
@@ -1440,7 +2147,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
 
-    private boolean isFallThrough(Unit inUnit, Unit succ) {
+    private boolean isFallThrough(Unit inUnit, Unit succ) {//-------------------------------------这个方法要改
         JimpleBasedInterproceduralCFG interproceduralCFG = new JimpleBasedInterproceduralCFG();
         return (succ == null && inUnit instanceof IfStmt) ? true : interproceduralCFG.isFallThroughSuccessor(inUnit, succ);
     }
@@ -1516,6 +2223,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     Local local = (Local) coiStmt.getLeftOp();
                     String symbol = createSymbol(local, method, coiStmt);
                     symbolLocalMap.put(symbol, local);
+                    symbolDefUnitMap.put(symbol, coiStmt);
                     StringConstant stringConst = (StringConstant) coiStmt.getRightOp();
                     newDecl = "(declare-const " + symbol + " String )";
                     newAssert = "(assert (= " + symbol + " " + stringConst + " ))";
@@ -1636,17 +2344,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                         }
                     }
 
-                    throw new RuntimeException("handle case for JCastExpr" + defDefintionStmt);
 
                 } else if (defDefintionStmt.getRightOp() instanceof StringConstant) {//定义是一个常量定义 例如：x1="ttt"
                     Local local = (Local) defDefintionStmt.getLeftOp();
                     String symbol = createSymbol(local, sootMethod, defDefintionStmt);
                     symbolLocalMap.put(symbol, local);
+                    symbolDefUnitMap.put(symbol, defDefintionStmt);
                     StringConstant stringConst = (StringConstant) defDefintionStmt.getRightOp();
                     newDecl = "(declare-const " + symbol + " String )";
                     newAssert = "(assert (= " + symbol + " " + stringConst + " ))";
                 } else if (defDefintionStmt.getRightOp() instanceof ParameterRef) {//来源于参数   x1=parameter0
-                    //logger.debug("Found parameter ref when searching for original value");
+
                     if (defDefintionStmt.getLeftOp() instanceof Local) {
                         Local prLocal = (Local) defDefintionStmt.getLeftOp();
                         String localSymbol = createSymbol(prLocal, sootMethod, defDefintionStmt);
@@ -1897,7 +2605,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return key;
     }
 
-    private void getAllPathInMethod(Unit unit, BriefUnitGraph ug, List<Set<Unit>> finalPaths, Set<Unit> curPath) {
+    private void getAllPathInMethod(Unit unit, UnitGraph ug, List<Set<Unit>> finalPaths, Set<Unit> curPath) {
         Set<Unit> curPathCopy = new LinkedHashSet<>(curPath);
         curPathCopy.add(unit);
         if (curPathCopy.size() >= finalPathsLimit || ug.getPredsOf(unit).size() == 0) {
@@ -1915,6 +2623,42 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
 
     }
+
+//    private void getAllPathInMethodRemoveInIntentsensiveIFBlock(Unit unit, UnitGraph ug, List<Set<Unit>> finalPaths, Set<Unit> curPath) {
+//        Set<Unit> curPathCopy = new LinkedHashSet<>(curPath);
+//        if(ug.getSuccsOf(unit).size()>=2)
+//        {
+//            Pair<Boolean,Unit> jump=isAnalyseControlFlowBlock(unit);
+//            if(jump.getValue0())
+//            {
+//
+//            }
+//            else
+//            {
+//
+//            }
+//        }
+//        curPathCopy.add(unit);
+//        if (curPathCopy.size() >= finalPathsLimit || ug.getPredsOf(unit).size() == 0) {
+//            if (curPathCopy.size() >= finalPathsLimit) {
+//                System.out.println("hitPathsLimit=true***************************************");
+//            }
+//            finalPaths.add(curPathCopy);
+//        } else {
+//            for (Unit parentUnit : ug.getPredsOf(unit)) {
+//                if (!curPathCopy.contains(parentUnit))//去除循环
+//                {
+//                    getAllPathInMethodRemoveInIntentsensiveIFBlock(parentUnit, ug, finalPaths, curPathCopy);
+//                }
+//            }
+//        }
+//
+//    }
+
+//    private Pair<Boolean,Unit> isAnalyseControlFlowBlock(Unit unit) {
+//
+//
+//    }
 
 
     private boolean unitNeedAnalysis(Unit unit, SootMethod sootMethod) {
