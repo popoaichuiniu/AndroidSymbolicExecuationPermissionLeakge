@@ -12,6 +12,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import org.apache.log4j.FileAppender;
+import org.apache.log4j.PatternLayout;
 import org.xmlpull.v1.XmlPullParserException;
 
 import soot.PackManager;
@@ -23,11 +25,35 @@ import soot.options.Options;
 
 public class AndroidCallGraphHelper {
 
+
+
+	private org.apache.log4j.Logger appLogger = null;// 应用日志
+
+
+
 	
 
 	public AndroidCallGraphHelper(String appPath, String androidPlatformPath) {
 		super();
 		this.appPath = appPath;
+		appLogger= org.apache.log4j.Logger.getLogger(appPath);
+		String logfilePath = "app-exception/androidCallgraph/" + appPath.replaceAll("/|\\.", "_") + "_callgraph.txt";
+
+		File temp = new File(logfilePath);
+		if (temp.exists()) {
+			temp.delete();
+		}
+
+
+		try {
+			appLogger.addAppender(new FileAppender(new PatternLayout("%d %p [%t] %C.%M(%L) | %m%n"), logfilePath));
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+
+
 		this.androidPlatformPath = androidPlatformPath;
 		caculateAndroidCallGraph();
 	}
@@ -66,11 +92,11 @@ public class AndroidCallGraphHelper {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			PermissionEscalation.appLogger.error(appPath, e);
+			appLogger.error(appPath, e);
 		} catch (XmlPullParserException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			PermissionEscalation.appLogger.error(appPath, e);
+			appLogger.error(appPath, e);
 		}
 
 		//initializeSoot();//已经在calculateSourcesSinksEntrypoints初始化过了
@@ -114,55 +140,55 @@ public class AndroidCallGraphHelper {
 
 	}
 
-	private void initializeSoot() {
-
-		soot.G.reset();// 标准的soot操作，清空soot之前所有操作遗留下的缓存值
-
-		Options.v().set_src_prec(Options.src_prec_apk);// 设置优先处理的文件格式
-
-		Options.v().set_process_dir(Collections.singletonList(appPath));// 处理文件夹中所有的class
-		// singletonList(T) 方法用于返回一个只包含指定对象的不可变列表
-
-		Options.v().set_android_jars(androidPlatformPath);// 在该路径下找android.jar
-		
-		Options.v().set_app(true);//
-
-		List<String> excludeList = new LinkedList<String>();
-		excludeList.add("java.*");
-		excludeList.add("sun.misc.*");
-		excludeList.add("android.*");
-		excludeList.add("org.apache.*");
-		excludeList.add("soot.*");
-		excludeList.add("javax.servlet.*");
-		Options.v().set_exclude(excludeList);
-		Options.v().set_no_bodies_for_excluded(true);//去除的类不加载body
-
-		Options.v().set_whole_program(true);// 以全局模式运行，这个默认是关闭的，否则不能构建cg(cg是全局的pack)
-
-		Options.v().set_allow_phantom_refs(true);// 允许未被解析的类，可能导致错误
-		
-		//Phantom classes are classes that are neither in the process directory nor on
-//		the Soot classpath, but that are referenced by some class / method body that
-//		Soot loads. If phantom classes are enabled, Soot will not just abort and
-//		fail on such an unresolvable reference, but create an empty stub called a
-//		phantom class which in turn contains phanom methods to make up for the
-//		missing bits and pieces.
-		
-		
-		//设置cg pack的选项		
-		
-		Options.v().setPhaseOption("cg.cha", "on");//不用设置的默认就为true
-		
-		Options.v().setPhaseOption("cg.cha", "verbose:true");
-		
-		Options.v().setPhaseOption("cg.cha", "apponly:true");
-		
-		Options.v().setPhaseOption("cg.spark", "off");// 构建cg的选项，spark是一个指向性分析框架 这个打开的会可能会消除一些 节点
-
-		Scene.v().loadNecessaryClasses();// 加载soot需要的classes，包括命令行指定的
-										// 使用soot反编译dex文件，并将反编译后的文件加载到内存中
-
-	}
+//	private void initializeSoot() {
+//
+//		soot.G.reset();// 标准的soot操作，清空soot之前所有操作遗留下的缓存值
+//
+//		Options.v().set_src_prec(Options.src_prec_apk);// 设置优先处理的文件格式
+//
+//		Options.v().set_process_dir(Collections.singletonList(appPath));// 处理文件夹中所有的class
+//		// singletonList(T) 方法用于返回一个只包含指定对象的不可变列表
+//
+//		Options.v().set_android_jars(androidPlatformPath);// 在该路径下找android.jar
+//
+//		Options.v().set_app(true);//
+//
+//		List<String> excludeList = new LinkedList<String>();
+//		excludeList.add("java.*");
+//		excludeList.add("sun.misc.*");
+//		excludeList.add("android.*");
+//		excludeList.add("org.apache.*");
+//		excludeList.add("soot.*");
+//		excludeList.add("javax.servlet.*");
+//		Options.v().set_exclude(excludeList);
+//		Options.v().set_no_bodies_for_excluded(true);//去除的类不加载body
+//
+//		Options.v().set_whole_program(true);// 以全局模式运行，这个默认是关闭的，否则不能构建cg(cg是全局的pack)
+//
+//		Options.v().set_allow_phantom_refs(true);// 允许未被解析的类，可能导致错误
+//
+//		//Phantom classes are classes that are neither in the process directory nor on
+////		the Soot classpath, but that are referenced by some class / method body that
+////		Soot loads. If phantom classes are enabled, Soot will not just abort and
+////		fail on such an unresolvable reference, but create an empty stub called a
+////		phantom class which in turn contains phanom methods to make up for the
+////		missing bits and pieces.
+//
+//
+//		//设置cg pack的选项
+//
+//		Options.v().setPhaseOption("cg.cha", "on");//不用设置的默认就为true
+//
+//		Options.v().setPhaseOption("cg.cha", "verbose:true");
+//
+//		Options.v().setPhaseOption("cg.cha", "apponly:true");
+//
+//		Options.v().setPhaseOption("cg.spark", "off");// 构建cg的选项，spark是一个指向性分析框架 这个打开的会可能会消除一些 节点
+//
+//		Scene.v().loadNecessaryClasses();// 加载soot需要的classes，包括命令行指定的
+//										// 使用soot反编译dex文件，并将反编译后的文件加载到内存中
+//
+//	}
 
 	// 可视化函数调用图的函数
 	private void visit() {
@@ -176,7 +202,7 @@ public class AndroidCallGraphHelper {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			PermissionEscalation.appLogger.error(appPath, e);
+			appLogger.error(appPath, e);
 		}
 
 		// *******************************************************//
@@ -190,7 +216,7 @@ public class AndroidCallGraphHelper {
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-				PermissionEscalation.appLogger.error(appPath, e);
+				appLogger.error(appPath, e);
 			}
 			if (!visited.contains(edge.getSrc().method().getSignature())) {
 				cge.createNode(edge.getSrc().method().getSignature());
@@ -211,7 +237,7 @@ public class AndroidCallGraphHelper {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			PermissionEscalation.appLogger.error(appPath, e);
+			appLogger.error(appPath, e);
 		}
 		
 		// *******************************************************//

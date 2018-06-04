@@ -1,10 +1,6 @@
 package com.popoaichuiniu.jacy;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -17,21 +13,20 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParserException;
 
-import com.csvreader.CsvReader;
-
 import soot.jimple.infoflow.android.axml.AXmlAttribute;
 import soot.jimple.infoflow.android.axml.AXmlNode;
 
 public class AndroidInfoHelper {
 	
 	
-	private static String permissionMappingFilePath="./AnalysisAPKIntent/mapping_5.1.1.csv";//API=22  这个csv有问题,还有一个是别人修正的
+	//private static String permissionMappingFilePath="./AnalysisAPKIntent/mapping_5.1.1.csv";//API=22  这个csv有问题,还有一个是别人修正的
 	
 	//private static String jellybean_allmappings="jellybean_allmappings.txt";//API=16,这个太老
 	
 	private static String permission_25="./AnalysisAPKIntent/permissions_25.json";//API=25 androguard提供
 	private static String dangerousOrSpecailPermissionFilePath="./AnalysisAPKIntent/dangerousOrSpecialPermission_lose.txt";//存在API>=26
-	private List<String> ICCMethods = null;
+
+
 	private static Map<String, List<String>> permissionMethods= null;
 	private static Map<String, List<String>> permissionAndroguardMethods= null;
 
@@ -39,11 +34,17 @@ public class AndroidInfoHelper {
 		return permissionAndroguardMethods;
 	}
 
-	private static Map<String, String> permissionDangerousAndSpecialMethods1= null;//因为permissionMappingFilePath="mapping_5.1.1.csv"，这个不对，所有这个被丢弃
+	//private static Map<String, String> permissionDangerousAndSpecialMethods1= null;//因为permissionMappingFilePath="mapping_5.1.1.csv"，这个不对，所有这个被丢弃
+
 	private static Map<String, List<String>> permissionDangerousAndSpecialMethodsUltimulateString = null;//被危险或者特殊权限保护起来的API
 	private String appPath = null;
 	private Map<String, AXmlNode> EAs = null;
 	private Map<String, List<String>> EAProtctedPermission = null;//EA的permission
+
+
+	private BufferedWriter androidAPKException=null;
+
+	private List<String> exceptionAndroidInfoList =null;
 	
 	public Map<String, List<String>> getEAProtctedPermission() {
 		if(EAProtctedPermission==null)
@@ -65,9 +66,8 @@ public class AndroidInfoHelper {
 		return components;
 	}
 
-	public List<String> getICCMethods() {
-		return ICCMethods;
-	}
+
+
 
 	public  Map<String, List<String>> getPermissionMethod() {
 		return permissionMethods;
@@ -80,9 +80,39 @@ public class AndroidInfoHelper {
 	public AndroidInfoHelper(String appPath) {
 		super();
 		this.appPath = appPath;
+		exceptionAndroidInfoList =new ArrayList<>();
 		calcaulateEAs();
 		caculatePermissionProtectedEAs();
 		caculatePermissionProtectedComponents();
+
+		if(exceptionAndroidInfoList.size()>0)
+		{
+
+
+			try {
+
+				androidAPKException = new BufferedWriter(new FileWriter("app-exception/androidAPKInfo/"+appPath.replaceAll("/|\\.", "_")+"_androidAPKInfo.txt"));
+
+
+				for(String exception: exceptionAndroidInfoList)
+				{
+					androidAPKException.write(exception);
+				}
+
+
+				androidAPKException.close();
+
+			}
+			catch (IOException e)
+			{
+				e.printStackTrace();
+			}
+		}
+
+
+
+
+
 
 	}
 
@@ -101,9 +131,9 @@ public class AndroidInfoHelper {
 
 	}
 
-	public static Map<String, String> getPermissionDangerousAndSpecialMethods1() {
-		return permissionDangerousAndSpecialMethods1;
-	}
+//	public static Map<String, String> getPermissionDangerousAndSpecialMethods1() {
+//		return permissionDangerousAndSpecialMethods1;
+//	}
 
 	private void calcaulateEAs() {
 		
@@ -177,17 +207,12 @@ public class AndroidInfoHelper {
 			else
 			{
 				//存在异常
-				try {
-					PermissionEscalation.exceptionAPPWriter.write(appPath+" "+"export value 不是boolean");
-					
-					PermissionEscalation.exceptionAPPWriter.flush();
-					
-					
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-					PermissionEscalation.appLogger.error(appPath, e);
-				}
+
+
+				exceptionAndroidInfoList.add(node+"exported属性异常！:"+node.getAttribute("exported")+"\n");
+
+
+
 			}
 			
 		}
@@ -213,75 +238,75 @@ public class AndroidInfoHelper {
 		
 		
 	}
-	public static void processPermissionCSVMapFile() {
-		permissionMethods=new HashMap<String,List<String>>();
-		permissionDangerousAndSpecialMethods1=new HashMap<String,String>();
-		List<String> dangerousAndSpecialPermissions=getDangerousOrSpecailPermission();
-		CsvReader reader = null;
-		try {
-			reader = new CsvReader(permissionMappingFilePath);
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			PermissionEscalation.errorRunLogger.error("processPermissionCSVMapFile()",e);
-		}
-
-		try {
-			reader.readHeaders();
-			while (reader.readRecord()) {
-				
-				//csvList.add(reader.getValues()); // 按行读取，并把每一行的数据添加到list集合
-				
-				String methodSignature="<"+reader.get("CallerClass").replaceAll("/", ".")+": "+reader.get("CallerMethod")+reader.get("CallerMethodDesc")+">";
-				String methodPermission=reader.get("Permission");
-				//System.out.println("*"+methodSignature+"*");
-				//System.out.println("*"+methodPermission+"*");
-				
-				List<String> arr=permissionMethods.get(methodSignature);
-				if(arr==null)
-				{
-					arr=new ArrayList<String>();
-					arr.add(methodPermission);
-					permissionMethods.put(methodSignature,arr);
-					
-				}
-				else
-				{
-					
-					arr.add(methodPermission);
-					
-					
-					
-				}
-				
-				///**************************************************
-				if(dangerousAndSpecialPermissions.contains(methodPermission))
-				{
-					permissionDangerousAndSpecialMethods1.put(methodSignature, methodPermission);
-				}
-				
-				
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			PermissionEscalation.errorRunLogger.error("processPermissionCSVMapFile()",e);
-		}
-		reader.close();
-//		System.out.println("*************************PermissionMap****************************");
-//		for (Iterator<Map.Entry<String,List<String>>> iterator=permissionMethods.entrySet().iterator();iterator.hasNext();)
-//		{
-//			Map.Entry<String,List<String>> permissionMap=iterator.next();
-//			if(permissionMap.getValue().size()>1)
-//			{
-//				System.out.println(permissionMap.getValue().size()+permissionMap.getKey());
-//				System.out.println(permissionMap.getValue());
-//			}
+//	public static void processPermissionCSVMapFile() {
+//		permissionMethods=new HashMap<String,List<String>>();
+//		permissionDangerousAndSpecialMethods1=new HashMap<String,String>();
+//		List<String> dangerousAndSpecialPermissions=getDangerousOrSpecailPermission();
+//		CsvReader reader = null;
+//		try {
+//			reader = new CsvReader(permissionMappingFilePath);
+//		} catch (FileNotFoundException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//			PermissionEscalation.errorRunLogger.error("processPermissionCSVMapFile()",e);
 //		}
-//		System.out.println("*************************PermissionMap****************************");
-		
-
-	}
+//
+//		try {
+//			reader.readHeaders();
+//			while (reader.readRecord()) {
+//
+//				//csvList.add(reader.getValues()); // 按行读取，并把每一行的数据添加到list集合
+//
+//				String methodSignature="<"+reader.get("CallerClass").replaceAll("/", ".")+": "+reader.get("CallerMethod")+reader.get("CallerMethodDesc")+">";
+//				String methodPermission=reader.get("Permission");
+//				//System.out.println("*"+methodSignature+"*");
+//				//System.out.println("*"+methodPermission+"*");
+//
+//				List<String> arr=permissionMethods.get(methodSignature);
+//				if(arr==null)
+//				{
+//					arr=new ArrayList<String>();
+//					arr.add(methodPermission);
+//					permissionMethods.put(methodSignature,arr);
+//
+//				}
+//				else
+//				{
+//
+//					arr.add(methodPermission);
+//
+//
+//
+//				}
+//
+//				///**************************************************
+//				if(dangerousAndSpecialPermissions.contains(methodPermission))
+//				{
+//					permissionDangerousAndSpecialMethods1.put(methodSignature, methodPermission);
+//				}
+//
+//
+//			}
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//			PermissionEscalation.errorRunLogger.error("processPermissionCSVMapFile()",e);
+//		}
+//		reader.close();
+////		System.out.println("*************************PermissionMap****************************");
+////		for (Iterator<Map.Entry<String,List<String>>> iterator=permissionMethods.entrySet().iterator();iterator.hasNext();)
+////		{
+////			Map.Entry<String,List<String>> permissionMap=iterator.next();
+////			if(permissionMap.getValue().size()>1)
+////			{
+////				System.out.println(permissionMap.getValue().size()+permissionMap.getKey());
+////				System.out.println(permissionMap.getValue());
+////			}
+////		}
+////		System.out.println("*************************PermissionMap****************************");
+//
+//
+//	}
 	private static String convertAndroGuardMethodSignatureToSoot(String methodSignature) {
 		//"Landroid/telephony/SmsManager;-sendTextMessage-(Ljava/lang/String; Ljava/lang/String; Ljava/lang/String; Landroid/app/PendingIntent; Landroid/app/PendingIntent;)V"
 		//<android.telephony.SmsManager: sendTextMessage(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Landroid/app/PendingIntent;Landroid/app/PendingIntent;)V>
@@ -427,7 +452,7 @@ public class AndroidInfoHelper {
 
 			AXmlNode eaNodeAXMlValue = eaNode.getValue();
 			// System.out.println(eaNode.getAttribute("permission"));
-			AXmlAttribute<?> permissionAttribute = eaNodeAXMlValue.getAttribute("permission");//不可能有多个permission吗,但是方法只有一个，只能取出单一值
+			AXmlAttribute<?> permissionAttribute = eaNodeAXMlValue.getAttribute("permission");//android:permission只会有一个
 			if (permissionAttribute != null) {
 				String value = (String) permissionAttribute.getValue();
 				System.out.println(value);

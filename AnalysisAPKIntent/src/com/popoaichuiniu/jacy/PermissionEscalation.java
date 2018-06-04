@@ -11,7 +11,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.popoaichuiniu.util.Config;
 import com.popoaichuiniu.util.Util;
 import org.apache.log4j.FileAppender;
 import org.apache.log4j.Logger;
@@ -25,7 +24,6 @@ import soot.jimple.toolkits.ide.icfg.JimpleBasedInterproceduralCFG;
 import soot.tagkit.Tag;
 import soot.toolkits.graph.BriefUnitGraph;
 import soot.toolkits.scalar.SimpleLocalDefs;
-import soot.util.Chain;
 
 public class PermissionEscalation {
 
@@ -312,165 +310,10 @@ public class PermissionEscalation {
     public static void findEAToProtectedAPI(CallGraph cGraph, List<String> string_EAs, SootMethod entryPoint,
                                             Map<String, List<String>> permission_EAs,String appPath) {
 
-        List<SootMethod> ea_entryPoints = new ArrayList<>();
-        for (Iterator<Edge> iterator = cGraph.edgesOutOf(entryPoint); iterator.hasNext(); )// DummyMain方法调用的所有方法（各个组件的回调方法和生命周期）
-        {
-            Edge edge = iterator.next();
-            SootMethod method = edge.getTgt().method();
-
-//            if (string_EAs.contains(method.getDeclaringClass().getName()))// 这个方法是不是属于EA的方法
-//            {
-//
-//
-//                // 区分回调方法还是UI方法还是生命周期等其他回调方法，（想UI方法占暂时不考虑但是不知道怎么区分，这里就一起弄)
-//
-//                System.out.println("111111111111111111111111111111111111111111" + method.getBytecodeSignature()
-//                        + "1111111111111111111111111111111111111111111111111111111");
-//
-//                System.out.println(method.getActiveBody().toString());
-//
-//                Set<SootMethod> visited = new HashSet<>();// 不同的EA将遍历完所有可能到达的点，然后将到达的危险权限保护的API路径保存起来
-//
-//                Set<SootMethod> callPathCopy = new LinkedHashSet<>();
-//
-//                String EA_Permission = "";
-//                if (permission_EAs.containsKey(method.getDeclaringClass().getName())) {
-//                    EA_Permission = permission_EAs.get(method.getDeclaringClass().getName()).get(0);
-//                }
-//
-//                //findPathToProtectedAPI(cGraph, visited, method, "", callPathCopy, EA_Permission);
-//
-//                wrapAllpath(cGraph, visited, method, "", callPathCopy, EA_Permission);
-//
-//
-//                System.out.println("222222222222222222222222222222222222222222222222222222222222");
-//            }
-
-
-            if (string_EAs.contains(method.getDeclaringClass().getName()))// 这个方法是不是属于EA的方法
-            {
-                ea_entryPoints.add(method);
-            }
-
-
-        }
-
-        generateUnitToAnalysis(ea_entryPoints, cGraph,appPath);
-    }
-
-    private static void generateUnitToAnalysis(List<SootMethod> ea_entryPoints, CallGraph cg,String appPath)  {
-        //JimpleBasedInterproceduralCFG jcfg = new JimpleBasedInterproceduralCFG();
-        ///////////////////////////////////////////////////////
-
-//        Chain<SootClass> applicationClasses = Scene.v().getApplicationClasses();//不包括android.jar还有android.support. java的 org.的
-//
-//
-//        System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++");
-//
-//        for (SootClass appClass : applicationClasses) {
-//            System.out.println("applicationClass:"+appClass.getName());
-//
-//        }
-//        System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++");
-//
-//
-//        System.out.println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-//
-//        Chain<SootClass> allClasses = Scene.v().getClasses();
-//
-//        for (SootClass appClass : allClasses) {
-//            System.out.println("allClasses:"+appClass.getName());
-//
-//        }
-//        System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++");
-
-
-
-        ///////////////////////////////////////////////////////////
-
-
-        Hierarchy h = Scene.v().getActiveHierarchy();
-
-
-        List<SootMethod> roMethods = Util.getMethodsInReverseTopologicalOrder(ea_entryPoints, cg);
-
-        BufferedWriter bufferedWriterUnitsNeedAnalysis =null;
-
-        try {
-            bufferedWriterUnitsNeedAnalysis = new BufferedWriter(new FileWriter(appPath + "_" + "UnitsNeedAnalysis.txt"));
-        }
-
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }
-
-
-        for (SootMethod sootMethod : roMethods) {
-            System.out.println(sootMethod.getBytecodeSignature());
-            List<Unit> unitsNeedToAnalysis = new ArrayList<>();
-
-            Body body = sootMethod.getActiveBody();
-            if (body != null) {
-                PatchingChain<Unit> units = body.getUnits();
-                for (Unit unit : units) {
-
-                    SootMethod calleeSootMethod=Util.getCalleeSootMethodat(unit);
-                    if(calleeSootMethod==null)
-                    {
-                        continue;
-                    }
-                    if (isDangerousOrSpecialProtectedAPI(calleeSootMethod)) {
-                        unitsNeedToAnalysis.add(unit);
-                        System.out.println("################"+unit.toString()+"################");
-                    } else {
-
-                        SootClass calleeSootClass=calleeSootMethod.getDeclaringClass();
-                        if(calleeSootClass.isInterface())
-                        {
-                            continue;
-                        }
-                        List<SootClass> superClasses = h.getSuperclassesOfIncluding(calleeSootClass);
-                        boolean flagisDangerousOrSpecialProtectedAPIClassSubClass = false;
-                        for (SootClass sootClass : superClasses) {
-                            if (isDangerousOrSpecialProtectedAPIClass(sootClass)) {
-                                flagisDangerousOrSpecialProtectedAPIClassSubClass = true;
-                                break;
-                            }
-                        }
-                        if (flagisDangerousOrSpecialProtectedAPIClassSubClass) {
-                            if (isDangerousOrSpecialProtectedAPIMethodName(calleeSootMethod.getName(),calleeSootMethod.getBytecodeParms())) {
-                                unitsNeedToAnalysis.add(unit);
-                                System.out.println("################"+unit.toString()+"################");
-                                System.out.println("有子类覆盖啊");
-
-                            }
-                        }
-
-                    }
-
-
-                }
-
-                for(Unit unit:unitsNeedToAnalysis)
-                {
-                    try {
-                        bufferedWriterUnitsNeedAnalysis.write(sootMethod.getBytecodeSignature()+"#"+unit.getTag("BytecodeOffsetTag")+"#"+unit.toString()+"\n");
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-            }
-        }
-        try {
-            bufferedWriterUnitsNeedAnalysis.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
 
     }
+
+
 
     private static void findPathToProtectedAPI(CallGraph cGraph, Set<SootMethod>
             visited, SootMethod sootMethod,
@@ -488,7 +331,7 @@ public class PermissionEscalation {
             System.out.println("LibraryClass()-methods:" +
                     sootMethod.getBytecodeSignature());
 
-            if (isDangerousOrSpecialProtectedAPI(sootMethod)) {
+            if (Util.isPermissionProtectedAPI(sootMethod)) {
 
                 if (EA_permission != "" &&
                         AndroidInfoHelper.getPermissionAndroguardMethods()
@@ -555,54 +398,9 @@ public class PermissionEscalation {
 
     }
 
-    private static boolean isDangerousOrSpecialProtectedAPI(SootMethod sootMethod) {
-        if (AndroidInfoHelper.getPermissionAndroguardMethods()
-                .containsKey(sootMethod.getBytecodeSignature())) {
-            return true;
-        } else {
-            return false;
-        }
-
-    }
-
-    private static boolean isDangerousOrSpecialProtectedAPIClass(SootClass sootclass) {
-        Set<String> sootMethodsStringSet = AndroidInfoHelper.getPermissionAndroguardMethods().keySet();
-
-        for(String temp:sootMethodsStringSet)
-        {
-            if(temp.contains(sootclass.getName()))//这个Name是包含包名的
-            {
-                return true;
-            }
-        }
-        return false;
-
-
-    }
-
-    private static boolean isDangerousOrSpecialProtectedAPIMethodName(String methodName,String param) {
-        Set<String> sootMethodsStringSet = AndroidInfoHelper.getPermissionAndroguardMethods().keySet();
-
-        for(String temp:sootMethodsStringSet)//<com.android.internal.telephony.SubscriptionController: clearDefaultsForInactiveSubIds()V>
-        {
-            int index0=temp.indexOf(":");
-            int index1=temp.indexOf("(");
-            int index2=temp.indexOf(")");
-            String methodNameOfDSP=temp.substring(index0+2,index1);
-            String methodParam=temp.substring(index1+1,index2);
-
-            if (methodNameOfDSP.equals(methodName)&&methodParam.equals(param)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        return  false;
 
 
 
-
-    }
 
 
     private static Map<SootMethod, List<List<SootMethod>>> curToTargetPaths = new HashMap<SootMethod, List<List<SootMethod>>>();
@@ -631,7 +429,7 @@ public class PermissionEscalation {
 
             System.out.println("LibraryClass()-methods:" + sootMethod.getBytecodeSignature());
 
-            if (isDangerousOrSpecialProtectedAPI(sootMethod)) {
+            if (Util.isPermissionProtectedAPI(sootMethod)) {
 
                 if (EA_permission != "" && AndroidInfoHelper.getPermissionAndroguardMethods()
                         .get(sootMethod.getBytecodeSignature()).contains(EA_permission)) {

@@ -6,7 +6,7 @@ import java.util.Set;
 
 public class Globals {
 	
-	public static int nullPointerCheckCount=0;
+
 	public static String[] bundleExtraDataMethods = {"getString","getShort","getFloat","getBoolean","getDouble","getInt","getLong","hasExtra","containsKey"};
 	public static String[] getBundleMethods = {"getExtras","getBundleExtra"};
 	public static String[] categoryMethods = {"hasCategory","getCategories"};

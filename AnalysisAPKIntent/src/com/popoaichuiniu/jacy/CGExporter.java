@@ -28,7 +28,7 @@ public class CGExporter {
     public CGExporter() {
         this.gexf = new GexfImpl();
         this.graph = this.gexf.getGraph();
-        this.gexf.getMetadata().setCreator("liu3237").setDescription("App method invoke graph");
+        this.gexf.getMetadata().setCreator("ZMS").setDescription("finalpaths");
         this.gexf.setVisualization(true);
         this.graph.setDefaultEdgeType(EdgeType.DIRECTED).setMode(Mode.STATIC);
         this.attrList = new AttributeListImpl(AttributeClass.NODE);
@@ -79,14 +79,19 @@ public class CGExporter {
         }
     }
 
-    public void createNode(String m) {
+    public Node createNode(String m) {
         String id = m;
         String codes = "";
-        if (getNodeByID(id) != null) {
-            return;
+
+        Node node=getNodeByID(id);
+        if (node== null) {
+            node = this.graph.createNode(id);
+            node.setLabel(id).getAttributeValues().addValue(this.codeArray, codes);
+            node.setSize(20);
+            return node;
         }
-        Node node = this.graph.createNode(id);
-        node.setLabel(id).getAttributeValues().addValue(this.codeArray, codes);        
-        node.setSize(20);
+
+        return node;
+
     }
 }

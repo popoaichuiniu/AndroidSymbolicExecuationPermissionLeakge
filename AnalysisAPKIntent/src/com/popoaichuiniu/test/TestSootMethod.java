@@ -2,28 +2,17 @@ package com.popoaichuiniu.test;
 
 import java.util.*;
 
-import javax.management.InstanceAlreadyExistsException;
-
-import beaver.Parser;
-import com.popoaichuiniu.intentGen.IFBlock;
 import com.popoaichuiniu.util.Config;
 import org.apache.log4j.Logger;
 
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 
 
-import soot.Local;
 import soot.SootMethod;
 import soot.Unit;
-import soot.Value;
-import soot.ValueBox;
-import soot.asm.backend.targets.InstanceOfCasts;
-import soot.jimple.*;
-import soot.jimple.infoflow.android.data.AndroidMethod;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.toolkits.graph.*;
-import soot.toolkits.scalar.SimpleLocalDefs;
 
 public class TestSootMethod {
 	
