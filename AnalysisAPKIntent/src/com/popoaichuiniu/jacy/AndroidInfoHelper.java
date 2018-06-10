@@ -1,11 +1,7 @@
 package com.popoaichuiniu.jacy;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.commons.io.FileUtils;
@@ -61,7 +57,52 @@ public class AndroidInfoHelper {
 	
 	static {
 		processJsonPermissionmapping();
+
 	}
+
+	private static Set<String> thirdLibraryPackageNameSet=null;
+
+	public static Set<String> getThirdLibraryPackageNameSet() {
+
+	    if(thirdLibraryPackageNameSet==null)
+        {
+            getThirdLibraryList();
+        }
+		return thirdLibraryPackageNameSet;
+	}
+
+	private static void getThirdLibraryList() {
+
+		String thirdLibraryFilePath="AnalysisAPKIntent/thirdLibrary.txt";
+		thirdLibraryPackageNameSet=new HashSet<>();
+		try {
+
+			BufferedReader bufferedReader=new BufferedReader(new FileReader(new File(thirdLibraryFilePath)));
+			String line=null;
+
+			while ((line=bufferedReader.readLine())!=null)
+			{
+
+				if(line.split("\\.").length>=3)
+				{
+					thirdLibraryPackageNameSet.add(line);
+				}
+
+
+			}
+
+
+
+			bufferedReader.close();
+
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+
+	}
+
 	public Map<String, AXmlNode> getComponents() {
 		return components;
 	}

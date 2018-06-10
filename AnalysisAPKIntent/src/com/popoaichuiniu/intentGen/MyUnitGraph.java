@@ -11,8 +11,12 @@ import java.util.*;
 
 public class MyUnitGraph extends BriefUnitGraph {
 
-    public MyUnitGraph(Body body) {
+    private Unit targetUnit=null;
+
+    public MyUnitGraph(Body body ,Unit targetUnit) {
         super(body);
+
+        this.targetUnit=targetUnit;
 
         for (Unit unit : body.getUnits()) {
             if (unitToPreds.get(unit) == null) {
@@ -47,9 +51,9 @@ public class MyUnitGraph extends BriefUnitGraph {
     }
 
     public Set<Unit> getAllUnit() {
-        if (!unitToPreds.keySet().containsAll(unitToSuccs.keySet()) && unitToSuccs.keySet().containsAll(unitToPreds.keySet())) {
-            throw new RuntimeException("冲突");
-        }
+//        if (!unitToPreds.keySet().containsAll(unitToSuccs.keySet()) && unitToSuccs.keySet().containsAll(unitToPreds.keySet())) {
+//            throw new RuntimeException("冲突");
+//        }
 
         return unitToPreds.keySet();
     }
@@ -173,5 +177,67 @@ public class MyUnitGraph extends BriefUnitGraph {
             }
 
         }
+    }
+
+    public boolean equivTo(MyUnitGraph otherUnitGraph)
+    {
+        if(otherUnitGraph==null)
+        {
+            return false;
+        }
+        if(this.getAllUnit().size()!=otherUnitGraph.getAllUnit().size())
+        {
+            return false;
+        }
+
+        for(Unit unit:this.getAllUnit())//targetUnit不在考察范围之内
+        {
+            Unit unit1=null;
+            Unit unit2=null;
+            if(unit==targetUnit)
+            {
+                unit1=targetUnit;
+                unit2=otherUnitGraph.targetUnit;
+            }
+            else
+            {
+                unit1=unit;
+                unit2=unit;
+            }
+
+            Set<Unit> parents=new HashSet<>(getPredsOf(unit1));
+            parents.remove(targetUnit);
+            Set<Unit> otherParents=new HashSet<>(otherUnitGraph.getPredsOf(unit2));
+            otherParents.remove(otherUnitGraph.targetUnit);
+            if(parents.size()!=otherParents.size())
+            {
+                return false;
+            }
+
+            if(!parents.containsAll(otherParents))
+            {
+                return false;
+            }
+
+            Set<Unit> children=new HashSet<>(getSuccsOf(unit1));
+            children.remove(targetUnit);
+            Set<Unit> otherChildren=new HashSet<>(otherUnitGraph.getSuccsOf(unit2));
+            otherChildren.remove(otherUnitGraph.targetUnit);
+            if(children.size()!=otherChildren.size())
+            {
+                return false;
+            }
+
+            if(!children.containsAll(otherChildren))
+            {
+                return  false;
+            }
+        }
+
+
+        return true;
+
+
+
     }
 }

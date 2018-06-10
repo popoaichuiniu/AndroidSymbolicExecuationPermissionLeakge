@@ -15,6 +15,10 @@ public class Config {
 
     public  static  String defaultAppPath ="/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/app-debug.apk";
 
+    public static String fDroidAPPDir="";
+
+    public static String wandoijiaAPP="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/apks_wandoujia/apks/all_app";
+
 
     public static  String Z3_RUNTIME_SPECS_DIR="Z3_RUNTIME_SPECS_DIR";
   // public  static  String defaultAppPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/万花筒之旅一宝宝巴士.apk";

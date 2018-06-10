@@ -92,6 +92,23 @@ public class Util {
         return null;
     }
 
+    public static void getAllMethodsToThisSootMethod(SootMethod sootMethod, CallGraph cg, Set<SootMethod> visited) {
+
+        visited.add(sootMethod);
+        for (Iterator<Edge> iteratorSootMethod = cg.edgesInto(sootMethod); iteratorSootMethod.hasNext(); ) {
+            SootMethod sootMethodSrc = iteratorSootMethod.next().getSrc().method();
+
+            if ((!visited.contains(sootMethodSrc)) && Util.isApplicationMethod(sootMethodSrc)) {
+                getAllMethodsToThisSootMethod(sootMethodSrc, cg, visited);
+            }
+
+
+        }
+
+
+    }
+
+
     public static List<SootMethod> getMethodsInReverseTopologicalOrder(List<SootMethod> entryPoints, CallGraph cg) {
 
 
@@ -120,11 +137,33 @@ public class Util {
         return rtoMethods;
     }
 
+    public static  boolean isThirdtyPartyMethod(SootMethod method)
+    {
+        Set<String> thirtyLibraryList=AndroidInfoHelper.getThirdLibraryPackageNameSet();
+
+        for(String temp:thirtyLibraryList)
+        {
+            if(method.getDeclaringClass().getPackageName().startsWith(temp))
+            {
+                System.out.println(temp+"第三方库方法"+method.getBytecodeSignature());
+                return true;
+            }
+        }
+
+        if(thirtyLibraryList.contains(method.getDeclaringClass().getPackageName()))
+        {
+            return true;
+        }
+        return false;
+    }
+
+
+
     public static boolean isApplicationMethod(SootMethod method) {
         Chain<SootClass> applicationClasses = Scene.v().getApplicationClasses();
 
         for (SootClass appClass : applicationClasses) {
-            //System.out.println("applicationClass:"+appClass.getName());
+            // System.out.println("applicationClass:"+appClass.getName());
             if (appClass.getMethods().contains(method)) {
                 return true;
             }
@@ -264,7 +303,7 @@ public class Util {
         allUnitInPathGraphPrevious.exportGexf(sootMethod.getName() + "_previous");
 
 
-        MyUnitGraph myUnitGraph = new MyUnitGraph(sootMethod.getActiveBody());
+        MyUnitGraph myUnitGraph = new MyUnitGraph(sootMethod.getActiveBody(),targetUnit);
 
         List<Unit> needToRemove = new ArrayList<>();
 
@@ -272,12 +311,16 @@ public class Util {
 
         assert testNeedToRemove.size() == needToRemove.size();
 
-        Set<Unit> allUnitInPath = new HashSet<>();
+        Set<Unit> allUnitInPath = new HashSet<>();//路径中所有的语句
 
         findUnRelativeNode(targetUnit, targetUnit, myUnitGraph, intentFlowAnalysis, allUnitInPath, needToRemove);
 
 
+        HashSet<Unit> unitNotInPath = new HashSet<>(myUnitGraph.getAllUnit());
 
+        unitNotInPath.removeAll(allUnitInPath);
+
+        needToRemove.addAll(unitNotInPath);//删除不在路径中的节点
 
         for (Unit toBeRemovedUnit : needToRemove)
 

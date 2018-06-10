@@ -1,1 +1,1 @@
-i want to be more strong!
+android ipc permission leakge detection

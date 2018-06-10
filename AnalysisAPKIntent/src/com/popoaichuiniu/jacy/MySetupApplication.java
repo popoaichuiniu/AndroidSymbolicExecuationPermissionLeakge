@@ -2,12 +2,11 @@ package com.popoaichuiniu.jacy;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import javax.activation.UnsupportedDataTypeException;
 
+import com.popoaichuiniu.util.Util;
 import org.xml.sax.SAXException;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -236,7 +235,9 @@ public class MySetupApplication extends SetupApplication {
 		//////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////
 
-		Options.v().set_app(false);
+		Options.v().set_app(false);//app false：整个app都是application class （app开发者代码和第三方库（包括android support 库））
+
+
 
 
 
@@ -261,15 +262,53 @@ public class MySetupApplication extends SetupApplication {
 
 
 
-		////////////////////////////////////////////////////////////////////////////////
-		Options.v().set_no_bodies_for_excluded(true);//去除的类不加载body
+		////////////////////////////////////////////////////////////////////////////////不太懂
+
+		List<String> excludeList = new LinkedList<String>();
+		excludeList.add("java.*");
+		excludeList.add("sun.misc.*");
+		excludeList.add("android.*");//
+		excludeList.add("org.apache.*");
+		excludeList.add("soot.*");
+		excludeList.add("javax.servlet.*");
+		excludeList.add("org.javatuples.*");
+//		Set<String> libraryList=AndroidInfoHelper.getThirdLibraryPackageNameSet();不去除第三方包，因为其可能也有目标API调用，然后其实那些没有目标API的第三方调用不会出现在最后的简约路径图中。
+//		for(String packageName:libraryList)
+//		{
+//			excludeList.add(packageName+".*");
+//		}
+		Options.v().set_exclude(excludeList);//这样就不会有这些方法的内部的边。这些方法作为library函数
 
 
+
+		Options.v().set_no_bodies_for_excluded(false);//去除的类加不加载body 如果不设置为true ，callgraph中没有到android.jar的方法的边。第三方其他库一旦排除，无论这个false还是true都没边（不需要到android。jar的边，直接分析的是方法的内部判断有没有目标api）
+
+//		Hi John,
+//
+//
+//
+//		If the package names are freemarker.*, it’s important to put the asterisk into the exclusion option on the Soot command line as well. Otherwise, Soot will assume that there is a single class called “freemarker” which you would like to exclude.
+//
+//
+//
+//		If your code under analysis references a class which is not on the Soot classpath and –allow-phantom-refs is used, this class will automatically be considered as a phantom. Nothing will be loaded, because Soot cannot know where to load it from. If you exclude a class, its structure (method signatures, etc.) will be loaded, but it will be marked as a library class. If you specify –no-bodies-for-excluded, Soot will not load any bodies for those classes, even if some code tries to access the body. Therefore, not putting the class on the classpath is the most rigorous option for guaranteeing that it will not be loaded.
+//
+//
+//
+//				Your analysis then needs to deal with such cases. If you have a call to a.foo() and the type of the variable “a” refers to a phantom class, there will not be a callgraph edge from the call site to anywhere and thus there will not be an IFDS call edge. There will, however, still be an IFDS call-to-return edge in which you can detect that you are dealing with such an exclusion case and apply e.g., an external library model to make up for the information loss. Depending on your analysis, you might also be able to simply ignore the effects of the method call on your data flow abstraction, that’s something you as the analysis designer need to decide.
+//
+//
+//
+//		Best regards,
+//
+//				Steven
+
+		Options.v().set_allow_phantom_refs(true);//不设置会报错
 
 
 		Options.v().set_whole_program(true);// 以全局模式运行，这个默认是关闭的，否则不能构建cg(cg是全局的pack)
 
-		Options.v().set_allow_phantom_refs(true);// 允许未被解析的类，可能导致错误
+
 
 
 
@@ -311,8 +350,7 @@ public class MySetupApplication extends SetupApplication {
 		// Set the Soot configuration options. Note that this will needs to be
 		// done before we compute the classpath.
 
-		if (sootConfig != null)
-			sootConfig.setSootOptions(Options.v());
+
 
 
 		Options.v().set_keep_line_number(true);
@@ -324,6 +362,7 @@ public class MySetupApplication extends SetupApplication {
 
 		//Options.v().set_soot_classpath(apkFileLocation+ File.pathSeparator+"/home/zms/platforms/android-27/android.jar");
 		Options.v().set_soot_classpath(getClasspath());//+":/media/softdata/AndroidSDKdirectory/extras/android/support"
+
 		Main.v().autoSetOptions();
 		
 		// Load whetever we need

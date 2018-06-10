@@ -26,6 +26,7 @@ public class GenerateUnitNeedToAnalysis {
 
         List<SootMethod> roMethods = Util.getMethodsInReverseTopologicalOrder(ea_entryPoints, cg);
 
+
         BufferedWriter bufferedWriterUnitsNeedAnalysis =null;
 
         try {
@@ -122,8 +123,9 @@ public class GenerateUnitNeedToAnalysis {
             e.printStackTrace();
         }
 
-        String appDirPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
+        //String appDirPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
 
+        String appDirPath=Config.wandoijiaAPP;
         File appDir=new File(appDirPath);
         if(appDir.isDirectory())
         {
@@ -198,6 +200,7 @@ public class GenerateUnitNeedToAnalysis {
                     }
                     try {
                         bufferedWriterHasGenerateUnitNeedAnalysis.write(apkFile.getAbsolutePath()+"\n");
+                        bufferedWriterHasGenerateUnitNeedAnalysis.flush();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -233,6 +236,7 @@ public class GenerateUnitNeedToAnalysis {
 
 
         AndroidCallGraphHelper androidCallGraphHelper=new AndroidCallGraphHelper(appPath,Config.androidJar);
+
 
         CallGraph cGraph=androidCallGraphHelper.getCg();
 

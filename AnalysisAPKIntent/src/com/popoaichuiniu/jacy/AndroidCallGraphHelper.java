@@ -34,7 +34,7 @@ public class AndroidCallGraphHelper {
 	
 
 	public AndroidCallGraphHelper(String appPath, String androidPlatformPath) {
-		super();
+
 		this.appPath = appPath;
 		appLogger= org.apache.log4j.Logger.getLogger(appPath);
 		String logfilePath = "app-exception/androidCallgraph/" + appPath.replaceAll("/|\\.", "_") + "_callgraph.txt";
