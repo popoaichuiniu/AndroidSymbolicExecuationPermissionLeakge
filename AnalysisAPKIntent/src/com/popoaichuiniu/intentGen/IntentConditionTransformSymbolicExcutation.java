@@ -3,8 +3,10 @@ package com.popoaichuiniu.intentGen;
 import com.microsoft.z3.Z3Exception;
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
+import com.popoaichuiniu.util.ReadFile;
 import com.popoaichuiniu.util.Util;
 import com.popoaichuiniu.util.Config;
+import com.popoaichuiniu.util.WriteFile;
 import org.javatuples.Pair;
 import org.javatuples.Quartet;
 
@@ -42,10 +44,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     private int finalPathsPreviousLimit = 50;//
 
-    private boolean hasReachfinalPathSizeLimit = false;
-
-
-    private static BufferedWriter ifWriter = null;
+    private boolean hasReachFinalPathSizeLimit = false;
 
 
     private static BufferedWriter ifReducedWriter = null;
@@ -57,6 +56,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private static BufferedWriter reduceCFGAnalysisLimitWriter = null;
 
     private static BufferedWriter bufferWriterEAToProtectPath = null;
+
+
+    private static WriteFile writeFileCallGraphSize = null;
 
 
     /**
@@ -160,7 +162,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
             try {
-                ifWriter.flush();
+
                 ifReducedWriter.flush();
             } catch (IOException e) {
                 e.printStackTrace();
@@ -273,7 +275,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
             try {
-                Util.bufferedWriterCircleEntry.flush();
+
                 appReachFinalPathSizeLimitWriter.flush();
                 reduceCFGAnalysisLimitWriter.flush();
                 bufferWriterEAToProtectPath.flush();
@@ -300,18 +302,25 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         allSootMethodsInPathOfEAToTarget.retainAll(aboutUnitNeedMethods);
 
         MyCallGraph myCallGraph = new MyCallGraph(allSootMethodsInPathOfEAToTarget, cg, sootMethod, unit, this);
+        writeFileCallGraphSize.writeStr("myCallGraph_P:"+myCallGraph.allMethods.size()+" "+ myCallGraph.allEdges.size()+" "+ new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.flush();
 
         myCallGraph.exportGexf(new File(appPath).getName());
         myCallGraph.reduced(allSootMethodsAllUnitsTargetUnitInMethodInfo);
 //
-//        myCallGraph.exportGexf("reduced_"+new File(appPath).getName());
+        myCallGraph.exportGexf("reduced_" + new File(appPath).getName());
 //
 //
-//        Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths = new HashSet<>();
-//
-//        getCallPathSootMethod(sootMethod, unit, new ArrayList<Pair<SootMethod, Unit>>(), myCallGraph, null, new HashSet<SootMethodEdge>(), sootMethodCallFinalPaths, ea_entryPoints);
-//
-//        System.out.println("sootMethodCallFinalPaths大小：" + sootMethodCallFinalPaths.size());
+        Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths = new HashSet<>();
+
+        writeFileCallGraphSize.writeStr("myCallGraph_R:"+myCallGraph.allMethods.size()+" "+ myCallGraph.allEdges.size()+" "+ new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.flush();
+        getCallPathSootMethod(sootMethod, unit, new ArrayList<Pair<SootMethod, Unit>>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths);
+
+        System.out.println("sootMethodCallFinalPaths大小：" + sootMethodCallFinalPaths.size());
+
+        writeFileCallGraphSize.writeStr(sootMethodCallFinalPaths.size() +" "+ new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.flush();
 //
 //
 //        for (List<Pair<SootMethod, Unit>> callSootMethodPath : sootMethodCallFinalPaths) {
@@ -360,11 +369,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         if (!pathLimitEnabled) {
             finalPathsPreviousLimit = Integer.MAX_VALUE;
         }
-        hasReachfinalPathSizeLimit = false;
+        hasReachFinalPathSizeLimit = false;
 
         //getAllPathInMethod(unit, null, ug, finalPaths, new ArrayList<Unit>(), new HashSet<UnitEdge>());//欧拉路径
 
-        if (hasReachfinalPathSizeLimit) {
+        if (hasReachFinalPathSizeLimit) {
 
             System.out.println("finalPaths数量达到限制");
 
@@ -385,12 +394,12 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         MyUnitGraph myUnitGraph = Util.getReducedCFG(sootMethod, ug, intentFlowAnalysis, myPairUnitToEdge.srcUnit);
 
-        hasReachfinalPathSizeLimit = false;
+        hasReachFinalPathSizeLimit = false;
 
         getAllPathInMethod(myPairUnitToEdge.srcUnit, null, myUnitGraph, finalPathsReduced, new ArrayList<Unit>(), new HashSet<UnitEdge>());
 
 
-        if (hasReachfinalPathSizeLimit) {
+        if (hasReachFinalPathSizeLimit) {
 
             System.out.println("化简CFG的finalPathsReduced达到限制！");
 
@@ -428,7 +437,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         allSootMethodsAllUnitsTargetUnitInMethodInfo.put(sootMethod, allUnitsTargetUnitInMethodInfo);
 
 
-        if (hasReachfinalPathSizeLimit) {
+        if (hasReachFinalPathSizeLimit) {
             return -1;
         } else {
             return myUnitGraph.getAllUnit().size();
@@ -539,7 +548,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
-    private void getCallPathSootMethod(SootMethod sootMethod, Unit unit, List<Pair<SootMethod, Unit>> callSootMethodUnitPairPath, CallGraph cg, SootMethodEdge sootMethodEdge, Set<SootMethodEdge> sootMethodEdgeSet, Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths, List<SootMethod> ea_entryPoints) {
+    private void getCallPathSootMethod(SootMethod sootMethod, Unit unit, List<Pair<SootMethod, Unit>> callSootMethodUnitPairPath, CallGraph cg, Edge edge, Set<Edge> edgeSet, Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths) {
 
 
         System.out.println("######" + sootMethod.getBytecodeSignature());
@@ -550,10 +559,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //        }
 
 
-//        if(sootMethodCallFinalPaths.size()>20)
-//        {
-//            return;
-//        }
+        if(sootMethodCallFinalPaths.size()>20)
+        {
+            return;
+        }
 
         if (!cg.edgesInto(sootMethod).hasNext()) {
             if (sootMethod.getBytecodeSignature().equals("<dummyMainClass: dummyMainMethod([Ljava/lang/String;)V>")) {
@@ -561,7 +570,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                 sootMethodCallFinalPaths.add(callSootMethodUnitPairPath);
                 System.out.println("路径长度：" + callSootMethodUnitPairPath.size());
-
 
                 return;
             } else {
@@ -571,30 +579,31 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
         List<Pair<SootMethod, Unit>> callSootMethodUnitPairPathCopy = new ArrayList<>(callSootMethodUnitPairPath);
+
         callSootMethodUnitPairPathCopy.add(new Pair<SootMethod, Unit>(sootMethod, unit));
 
-        Set<SootMethodEdge> sootMethodEdgeSetCopy = new HashSet<>(sootMethodEdgeSet);
+        Set<Edge> edgeSetCopy = new HashSet<>(edgeSet);
 
-        sootMethodEdgeSetCopy.add(sootMethodEdge);
-
-
-        for (Iterator<Edge> iteratorSootMethod = cg.edgesInto(sootMethod); iteratorSootMethod.hasNext(); ) {
-            Edge edgeSootMethod = iteratorSootMethod.next();
-
-            SootMethod sootMethodSrc = edgeSootMethod.getSrc().method();
-            Unit srcUnit = edgeSootMethod.srcUnit();
-//            System.out.println(edgeSootMethod.getSrc());
-//            System.out.println(edgeSootMethod.srcUnit());
+        edgeSetCopy.add(edge);
 
 
-            SootMethodEdge sootMethodEdgeNew = new SootMethodEdge(sootMethod, sootMethodSrc);
-            if ((!sootMethodEdgeSetCopy.contains(sootMethodEdgeNew))) {
-                getCallPathSootMethod(sootMethodSrc, srcUnit, callSootMethodUnitPairPathCopy, cg, sootMethodEdgeNew, sootMethodEdgeSetCopy, sootMethodCallFinalPaths, ea_entryPoints);
+        for (Iterator<Edge> edgeIterator = cg.edgesInto(sootMethod); edgeIterator.hasNext(); ) {
+            Edge inEdge = edgeIterator.next();
+
+            SootMethod sootMethodSrc = inEdge.src();
+            Unit srcUnit = inEdge.srcUnit();
+            if(srcUnit==null)
+            {
+                throw new RuntimeException();
+            }
+
+            if (!edgeSetCopy.contains(inEdge)) {
+                getCallPathSootMethod(sootMethodSrc, srcUnit, callSootMethodUnitPairPathCopy, cg, inEdge, edgeSetCopy, sootMethodCallFinalPaths);
             }
 
 
         }
-        System.out.println("stopstopstop");
+
     }
 
 
@@ -1004,7 +1013,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         public TargetUnitInMethodInfo(MyCallGraph.MyPairUnitToEdge myPairUnitToEdge, SootMethod sootMethod, MyUnitGraph myUnitGraph, Set<UnitPath> unitPaths) {
             this.unit = myPairUnitToEdge.srcUnit;
-            this.edge=myPairUnitToEdge.outEdge;
+            this.edge = myPairUnitToEdge.outEdge;
             this.sootMethod = sootMethod;
             this.myUnitGraph = myUnitGraph;
             this.unitPaths = unitPaths;
@@ -3007,7 +3016,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
         if (finalPaths.size() >= finalPathsPreviousLimit) {
-            hasReachfinalPathSizeLimit = true;
+            hasReachFinalPathSizeLimit = true;
             return;
         }
 
@@ -3053,13 +3062,14 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     public static void main(String[] args) {
 
 
+        writeFileCallGraphSize = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "callGraphSize.txt", false);
         try {
-            Util.bufferedWriterCircleEntry = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "circleEntry.txt"));
-            ifWriter = new BufferedWriter(new FileWriter("if_type.txt"));
+
 
             ifReducedWriter = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "if_reduced.txt"));
 
             bufferWriterEAToProtectPath = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "EAToTargetAPIPPAthCount.txt"));
+
         } catch (IOException ioexception) {
             ioexception.printStackTrace();
         }
@@ -3070,8 +3080,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             appDir = Config.defaultAppPath;
         } else {
 
-            appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
-            //appDir=Config.wandoijiaAPP;
+            //appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
+            appDir = Config.wandoijiaAPP;
         }
 
         File appDirFile = new File(appDir);
@@ -3079,22 +3089,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         if (appDirFile.isDirectory()) {
 
 
-            List<String> hasAnalysisAPP = null;
+            Set<String> hasAnalysisAPP = new ReadFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt").getAllContentLinSet();
 
-            try {
-
-                BufferedReader hasAnalysisAPPBufferedReader = new BufferedReader(new FileReader("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt"));
-                hasAnalysisAPP = new ArrayList<>();
-                String line = null;
-                while ((line = hasAnalysisAPPBufferedReader.readLine()) != null) {
-                    hasAnalysisAPP.add(line);
-                }
-
-                hasAnalysisAPPBufferedReader.close();
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
 
             if (hasAnalysisAPP == null) {
                 return;
@@ -3123,6 +3119,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                         appReachFinalPathSizeLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reachFinalPathSizeLimitAPP/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
                         reduceCFGAnalysisLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reduceCFGAnalysisLimit/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
 
+
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -3149,6 +3146,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                    } catch (InterruptedException e) {
 //                        e.printStackTrace();
 //                    }
+
+
                     try {
                         hasAnalysisAPPBufferedWriter.write(file.getAbsolutePath() + "\n");
                         hasAnalysisAPPBufferedWriter.flush();
@@ -3162,8 +3161,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                 }
-
-
 
 
             }
@@ -3198,14 +3195,13 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         try {
 
-            Util.bufferedWriterCircleEntry.close();
-            ifWriter.close();
+
             ifReducedWriter.close();
             bufferWriterEAToProtectPath.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-
+        writeFileCallGraphSize.close();
 
     }
 

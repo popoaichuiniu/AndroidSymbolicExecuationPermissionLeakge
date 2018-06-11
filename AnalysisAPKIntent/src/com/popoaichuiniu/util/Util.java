@@ -291,7 +291,7 @@ public class Util {
         return null;
     }
 
-    public static BufferedWriter bufferedWriterCircleEntry = null;
+
 
     public static MyUnitGraph getReducedCFG(SootMethod sootMethod, UnitGraph ug, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit) {
 

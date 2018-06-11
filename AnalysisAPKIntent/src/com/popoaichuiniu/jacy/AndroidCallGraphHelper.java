@@ -129,12 +129,13 @@ public class AndroidCallGraphHelper {
 		cg= Scene.v().getCallGraph();
 
 		// 可视化函数调用图
-		visit();
+		//visit();
+
 		// 导出函数调用图
 		
 			
-		cge.exportMIG("./AnalysisAPKIntent/cg_gexf_output/"+appPath.replaceAll("/|\\.", "_"), ".");
-		System.out.println("导出函数调用图为:" + appPath.replaceAll("/|\\.", "_") + ".gexf");
+//		cge.exportMIG("./AnalysisAPKIntent/cg_gexf_output/"+appPath.replaceAll("/|\\.", "_"), ".");
+//		System.out.println("导出函数调用图为:" + appPath.replaceAll("/|\\.", "_") + ".gexf");
 
 		
 

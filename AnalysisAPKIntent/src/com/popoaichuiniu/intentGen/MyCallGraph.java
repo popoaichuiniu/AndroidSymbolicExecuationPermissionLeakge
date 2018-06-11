@@ -27,7 +27,6 @@ public class MyCallGraph extends CallGraph {
     Map<SootMethod, Set<MyPairUnitToEdge>> targetUnitInSootMethod = new HashMap<SootMethod, Set<MyPairUnitToEdge>>();
 
 
-
     Map<SootMethod, Set<List<IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo>>> identicalMyUnitGraphSetOfMethodMap = new HashMap<>();
 
 
@@ -55,7 +54,7 @@ public class MyCallGraph extends CallGraph {
 
     }
 
-    class MyPairUnitToEdge{//edge 相同保证：srcUnit,src,tgt,kind都相同 //srcUnit可能为空。一个方法里可能有多个edge的srcUnit为空空，因此使用edge作为key。
+    class MyPairUnitToEdge {//edge 相同保证：srcUnit,src,tgt,kind都相同 //srcUnit可能为空。一个方法里可能有多个edge的srcUnit为空空，因此使用edge作为key。
 
         Edge outEdge;//key  对于方法里有多个多个edge:srcUnit是null ,src,tgt,kind都相同，认为只有一条边(由于edge的equals定义)
         Unit srcUnit;
@@ -94,9 +93,6 @@ public class MyCallGraph extends CallGraph {
         }
 
 
-
-
-
         for (SootMethod sootMethod : allMethodsInPathOfTarget) {
 
 
@@ -107,15 +103,14 @@ public class MyCallGraph extends CallGraph {
         }
 
 
-
-        MyPairUnitToEdge myPairUnitToEdge=new MyPairUnitToEdge(null,targetUnit);
-        HashSet<MyPairUnitToEdge> hashSetTargetSootMethod=new HashSet<>();
+        MyPairUnitToEdge myPairUnitToEdge = new MyPairUnitToEdge(null, targetUnit);
+        HashSet<MyPairUnitToEdge> hashSetTargetSootMethod = new HashSet<>();
         hashSetTargetSootMethod.add(myPairUnitToEdge);
-        targetUnitInSootMethod.put(targetSootMethod,hashSetTargetSootMethod);
+        targetUnitInSootMethod.put(targetSootMethod, hashSetTargetSootMethod);
 
         constructMyCallGraph(allMethodsInPathOfTarget, cg, targetSootMethod, new HashSet<>());
 
-
+        //validateTargetUnitInSootMethod(targetUnitInSootMethod);
         validateCallGraph(targetSootMethod);
 
 
@@ -160,6 +155,27 @@ public class MyCallGraph extends CallGraph {
 
     }
 
+    private void validateTargetUnitInSootMethod(Map<SootMethod, Set<MyPairUnitToEdge>> map) {
+        for (Map.Entry<SootMethod,Set<MyPairUnitToEdge>> entry: map.entrySet()) {
+
+
+            SootMethod sootMethod=entry.getKey();
+
+            for(MyPairUnitToEdge myPairUnitToEdge:entry.getValue())
+            {
+                if(sootMethod!=targetSootMethod)
+                {
+                    if(myPairUnitToEdge.outEdge==null)
+                    {
+                        System.out.println(sootMethod);
+                        System.out.println(myPairUnitToEdge.srcUnit);
+                        throw new RuntimeException();
+                    }
+                }
+            }
+        }
+    }
+
     private void constructMyCallGraph(Set<SootMethod> allMethodsInPathOfTarget, CallGraph cg, SootMethod targetSootMethod, HashSet<SootMethod> visited) {
 
         visited.add(targetSootMethod);
@@ -180,7 +196,7 @@ public class MyCallGraph extends CallGraph {
                 //FINALIZE edge: null in <org.jivesoftware.smackx.muc.MultiUserChat: void <init>(org.jivesoftware.smack.Connection,java.lang.String)> ==> <org.jivesoftware.smackx.muc.MultiUserChat: void finalize()>
 
 
-                targetMyPairUnitToEdges.add(new MyPairUnitToEdge(edge,edge.srcUnit()));//注意其srcUnit是可以为空的  这个条边是虚拟的
+                targetMyPairUnitToEdges.add(new MyPairUnitToEdge(edge, edge.srcUnit()));//注意其srcUnit是可以为空的  这个条边是虚拟的
 
 
                 targetUnitInSootMethod.put(sootMethodSrc, targetMyPairUnitToEdges);
@@ -215,24 +231,21 @@ public class MyCallGraph extends CallGraph {
             boolean flagNeedToRemove = true;
             for (MyPairUnitToEdge onePair : oneMyPairUnitToEdgeSet) {
 
-                if(onePair.srcUnit==null)//如果有的边的srcUnit就不分析它.
+                if (onePair.srcUnit == null)//如果有的边的srcUnit就不分析它.
                 {
                     continue;
                 }
 
-                int count=-1;
-                Map<Unit, IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo> map=intentConditionTransformSymbolicExcutation.allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod);
-                if(map!=null)
-                {
-                    IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo targetUnitInMethodInfo=map.get(onePair.srcUnit);
-                    if(targetUnitInMethodInfo!=null)
-                    {
-                        count=targetUnitInMethodInfo.myUnitGraph.getAllUnit().size();
+                int count = -1;
+                Map<Unit, IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo> map = intentConditionTransformSymbolicExcutation.allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod);
+                if (map != null) {
+                    IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo targetUnitInMethodInfo = map.get(onePair.srcUnit);
+                    if (targetUnitInMethodInfo != null) {
+                        count = targetUnitInMethodInfo.myUnitGraph.getAllUnit().size();
                     }
                 }
 
-                if(count==-1)
-                {
+                if (count == -1) {
                     count = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis);
                 }
 
@@ -295,10 +308,9 @@ public class MyCallGraph extends CallGraph {
         identicalMyUnitGraphSetOfMethodMap.put(sootMethod, new HashSet<>());
 
         Map<Integer, List<IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo>> targetUnitInMethodInfoDivideByMyUnitGraphSize = new HashMap<>();//将这些unit按照unitgraph图的大小划分
-        for (MyPairUnitToEdge myPairUnitToEdge:myPairUnitToEdgeSet) {
+        for (MyPairUnitToEdge myPairUnitToEdge : myPairUnitToEdgeSet) {
 
-            if(myPairUnitToEdge.srcUnit==null)
-            {
+            if (myPairUnitToEdge.srcUnit == null) {
                 continue;
             }
             IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo targetUnitInMethodInfo = allSootMethodsAllUnitsTargetUnitInMethodInfo.get(sootMethod).get(myPairUnitToEdge.srcUnit);
@@ -380,6 +392,7 @@ public class MyCallGraph extends CallGraph {
         for (Map.Entry<SootMethod, Set<MyPairUnitToEdge>> entry : targetUnitInSootMethod.entrySet()) {
             unitRemainInSootMethodMap.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
+       // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
         deleteSootMethod(allSootMethodsAllUnitsTargetUnitInMethodInfo);
     }
 
@@ -603,8 +616,6 @@ public class MyCallGraph extends CallGraph {
         allMethods.add(tgt);
 
 
-
-
         return flag;
 
 
@@ -638,25 +649,22 @@ public class MyCallGraph extends CallGraph {
         allEdges.remove(e);
 
 
-
-
         return flag;
 
 
     }
 
     private void removeSrcUnitInSootMethod(Edge edge, SootMethod src) {
-        Set<MyPairUnitToEdge> myPairUnitToEdgeSet=unitRemainInSootMethodMap.get(src);
-        for(Iterator<MyPairUnitToEdge> iterator = myPairUnitToEdgeSet.iterator(); iterator.hasNext();)
-        {
-            MyPairUnitToEdge myPairUnitToEdge=iterator.next();
-            if(myPairUnitToEdge.outEdge.equals(edge))
-            {
+        Set<MyPairUnitToEdge> myPairUnitToEdgeSet = unitRemainInSootMethodMap.get(src);
+        for (Iterator<MyPairUnitToEdge> iterator = myPairUnitToEdgeSet.iterator(); iterator.hasNext(); ) {
+            MyPairUnitToEdge myPairUnitToEdge = iterator.next();
+            if (myPairUnitToEdge.outEdge.equals(edge)) {
                 iterator.remove();
                 break;
             }
 
         }
+       // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
     }
 
     @Override
@@ -684,8 +692,7 @@ public class MyCallGraph extends CallGraph {
     public void deleteRepeatEdge(SootMethod sootMethod, Edge edge, Map<SootMethod, Map<Unit, IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo>> allSootMethodsAllUnitsTargetUnitInMethodInfo) {//判断这个边是不是和其他边重复的。重复的就删除其他边
 
         boolean flagEdgeIsRemain = isEdgeRemain(sootMethod, edge);
-        if(!flagEdgeIsRemain)
-        {
+        if (!flagEdgeIsRemain) {
             return;
         }
 
@@ -712,11 +719,9 @@ public class MyCallGraph extends CallGraph {
                     {
 
 
-
-                        if(isEdgeRemain(sootMethod,edgeTemp))
-                        {
+                        if (isEdgeRemain(sootMethod, edgeTemp)) {
                             removeEdge(edgeTemp);
-                            removeSrcUnitInSootMethod(edgeTemp,sootMethod);
+                            removeSrcUnitInSootMethod(edgeTemp, sootMethod);
 
                         }
 
@@ -732,12 +737,16 @@ public class MyCallGraph extends CallGraph {
     }
 
     private boolean isEdgeRemain(SootMethod sootMethod, Edge edge) {
-        boolean flagEdgeIsRemain=false;
-        for(MyPairUnitToEdge myPairUnitToEdgeSet:unitRemainInSootMethodMap.get(sootMethod))
+        if(sootMethod==targetSootMethod)
         {
-            if(myPairUnitToEdgeSet.outEdge.equals(edge))
-            {
-                flagEdgeIsRemain=true;
+            return false;
+        }
+        boolean flagEdgeIsRemain = false;
+        for (MyPairUnitToEdge myPairUnitToEdge : unitRemainInSootMethodMap.get(sootMethod)) {
+
+
+            if (myPairUnitToEdge.outEdge.equals(edge)) {
+                flagEdgeIsRemain = true;
                 break;
             }
         }
