@@ -1,6 +1,7 @@
 package com.popoaichuiniu.intentGen;
 
 import com.popoaichuiniu.jacy.CGExporter;
+import com.popoaichuiniu.util.MyLogger;
 import com.popoaichuiniu.util.Util;
 import soot.Kind;
 import soot.MethodOrMethodContext;
@@ -10,6 +11,7 @@ import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.toolkits.graph.BriefUnitGraph;
 import soot.toolkits.graph.UnitGraph;
+import soot.toolkits.scalar.SimpleLocalDefs;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -110,40 +112,16 @@ public class MyCallGraph extends CallGraph {
 
         constructMyCallGraph(allMethodsInPathOfTarget, cg, targetSootMethod, new HashSet<>());
 
-        //validateTargetUnitInSootMethod(targetUnitInSootMethod);
+        validateTargetUnitInSootMethod(targetUnitInSootMethod);
         validateCallGraph(targetSootMethod);
 
 
-//        HashSet<SootMethod> xxx = new HashSet<>();
-//
-//        HashSet<SootMethod> yyy = new HashSet<>();
-//
-//
-//
-//
-//
-//
-//        getTargetUnitInSootMethod(targetSootMethod, targetUnit, new HashSet<MyPairSootMethodUnit>(), xxx);//得到callgraph每一个方法的分析点
-//
-//
-//
-//
-//
-//
-//        Util.getAllMethodsToThisSootMethod(targetSootMethod, this, yyy);
-//        if (!xxx.containsAll(yyy)) {
-//            throw new RuntimeException();
-//        }
-//
-//
-//        if (!xxx.containsAll(allMethodsInPathOfTarget)) {
-//            throw new RuntimeException();
-//        }
+
 
         analyseEverySootMethodToGetMyUnitGraph(targetSootMethod, intentConditionTransformSymbolicExcutation);
 
 
-        System.out.println("MyCallGraph初始化完成！");
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("MyCallGraph初始化完成！");
 
 
         try {
@@ -226,6 +204,8 @@ public class MyCallGraph extends CallGraph {
 
             IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(ug);
 
+            SimpleLocalDefs defs=new SimpleLocalDefs(ug);
+
             Set<MyPairUnitToEdge> oneMyPairUnitToEdgeSet = oneEntry.getValue();
 
             boolean flagNeedToRemove = true;
@@ -246,7 +226,7 @@ public class MyCallGraph extends CallGraph {
                 }
 
                 if (count == -1) {
-                    count = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis);
+                    count = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis,defs,ug);
                 }
 
 
@@ -264,7 +244,7 @@ public class MyCallGraph extends CallGraph {
 
 
         }
-        System.out.println("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size());
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size());
 
         try {
             bufferedWriterRepeatEdge.write("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size() + "\n");
@@ -273,6 +253,12 @@ public class MyCallGraph extends CallGraph {
         }
 
 
+        //getIdenticalEdgeInSootMethod(targetSootMethod, intentConditionTransformSymbolicExcutation);
+
+
+    }
+
+    private void getIdenticalEdgeInSootMethod(SootMethod targetSootMethod, IntentConditionTransformSymbolicExcutation intentConditionTransformSymbolicExcutation) {
         for (Map.Entry<SootMethod, Set<MyPairUnitToEdge>> oneEntry : this.targetUnitInSootMethod.entrySet()) {
 
             if (oneEntry.getKey() == targetSootMethod)//不分析targetSootMethod
@@ -298,8 +284,6 @@ public class MyCallGraph extends CallGraph {
                 e.printStackTrace();
             }
         }
-
-
     }
 
     private void getIdenticalTargetUnitInMethod(SootMethod sootMethod, Set<MyPairUnitToEdge> myPairUnitToEdgeSet, Map<SootMethod, Map<Unit, IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo>> allSootMethodsAllUnitsTargetUnitInMethodInfo) {

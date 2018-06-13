@@ -3,6 +3,7 @@ package com.popoaichuiniu.intentGen;
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
+import com.popoaichuiniu.util.MyLogger;
 import com.popoaichuiniu.util.Util;
 import soot.*;
 import soot.jimple.*;
@@ -65,7 +66,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
             IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(briefUnitGraph);
 
 
-            System.out.println("#############################" + sootMethod.getBytecodeSignature() + "################################");
+            MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("#############################" + sootMethod.getBytecodeSignature() + "################################");
 
 
             for (Unit unit : body.getUnits()) {
@@ -84,13 +85,13 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                 Value base = instanceInvokeExpr.getBase();
 
 
-                                System.out.println("111111111111111111111111111111111111");
+                                MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("111111111111111111111111111111111111");
 
                                 FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(unit);
                                 for (Value value : flowSet) {
-                                    System.out.println(value);
+                                    MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(value);
                                 }
-                                System.out.println("2222222222222222222222222222222222222");
+                                MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("2222222222222222222222222222222222222");
 
 
                                 if(!intentFlowAnalysis.getFlowBefore(unit).contains(base))
@@ -122,7 +123,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                                 Value op = castExpr.getOp();
                                                 if (op instanceof Local) {
                                                     for (Unit opDefUnit : defs.getDefsOfAt((Local) op, defStmtDefIntentLocal)) {
-                                                        System.out.println("cast******"+opDefUnit);
+                                                        MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("cast******"+opDefUnit);
                                                     }
                                                 }
                                             }
@@ -131,10 +132,10 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 //                                            if(defStmtDefIntentLocal.getRightOp() instanceof Local)
 //                                            {
 //                                                Local  intentLocalSourceLocal= (Local) defStmtDefIntentLocal.getRightOp();
-//                                                System.out.println(defStmtDefIntentLocal);
+//                                                MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(defStmtDefIntentLocal);
 //                                                for(Unit temp:defs.getDefsOfAt(intentLocalSourceLocal,defStmtDefIntentLocal))
 //                                                {
-//                                                    System.out.println(temp);
+//                                                    MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(temp);
 //                                                }
 //                                            }
                                         }
@@ -168,17 +169,17 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 //
 //                if (unit instanceof JIfStmt) {
 //                    FlowSet<Value> flowSet = intentFlowAnalysis.getFlowBefore(unit);
-//                    System.out.println("111111111111111111111111111111111111");
+//                    MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("111111111111111111111111111111111111");
 //
 //
 //                    for (Value value : flowSet) {
-//                        System.out.println(value);
+//                        MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(value);
 //                    }
-//                    System.out.println("2222222222222222222222222222222222222");
+//                    MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("2222222222222222222222222222222222222");
 //                }
 
 
-                System.out.println(unit);
+                MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(unit);
 
                 if (unit instanceof JIfStmt) {//数据流分析，判断intent值是否到达Ifstmt
 
@@ -307,7 +308,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                     if (hasAnalysisAPP.contains(file.getAbsolutePath())) {
                         continue;
                     }
-                    System.out.println(file.getAbsolutePath());
+                    MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(file.getAbsolutePath());
 
                     Thread childThread = new Thread(new Runnable() {
                         @Override
@@ -333,7 +334,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
                     try {
                         childThread.join();
-                        System.out.println(file.getAbsolutePath() + "结束");
+                        MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info(file.getAbsolutePath() + "结束");
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }

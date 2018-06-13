@@ -3,6 +3,7 @@ package com.popoaichuiniu.intentGen;
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
+import com.popoaichuiniu.util.MyLogger;
 import com.popoaichuiniu.util.Util;
 import soot.*;
 import soot.jimple.toolkits.callgraph.CallGraph;
@@ -40,7 +41,7 @@ public class GenerateUnitNeedToAnalysis {
 
 
         for (SootMethod sootMethod : roMethods) {
-            System.out.println(sootMethod.getBytecodeSignature());
+            MyLogger.getOverallLogger(GenerateUnitNeedToAnalysis.class).info(sootMethod.getBytecodeSignature());
             List<Unit> unitsNeedToAnalysis = new ArrayList<>();
 
             Body body = sootMethod.getActiveBody();
@@ -55,7 +56,7 @@ public class GenerateUnitNeedToAnalysis {
                     }
                     if (Util.isPermissionProtectedAPI(calleeSootMethod)) {
                         unitsNeedToAnalysis.add(unit);
-                        System.out.println("################"+unit.toString()+"################");
+                        MyLogger.getOverallLogger(GenerateUnitNeedToAnalysis.class).info("################"+unit.toString()+"################");
                     } else {
 
                         SootClass calleeSootClass=calleeSootMethod.getDeclaringClass();
@@ -74,8 +75,8 @@ public class GenerateUnitNeedToAnalysis {
                         if (flagisDangerousOrSpecialProtectedAPIClassSubClass) {
                             if (Util.isPermissionProtectedAPIMethodName(calleeSootMethod.getName(),calleeSootMethod.getBytecodeParms())) {
                                 unitsNeedToAnalysis.add(unit);
-                                System.out.println("################"+unit.toString()+"################");
-                                //System.out.println("有子类覆盖啊");
+                                MyLogger.getOverallLogger(GenerateUnitNeedToAnalysis.class).info("################"+unit.toString()+"################");
+                                //MyLogger.getOverallLogger(GenerateUnitNeedToAnalysis.class).info("有子类覆盖啊");
                                 //throw new RuntimeException("有子类覆盖啊");
                                 try {
                                     bufferedWriterOverridePermissionMethod.write(appPath+"#"+sootMethod.getBytecodeSignature()+"#"+unit.toString()+"\n");

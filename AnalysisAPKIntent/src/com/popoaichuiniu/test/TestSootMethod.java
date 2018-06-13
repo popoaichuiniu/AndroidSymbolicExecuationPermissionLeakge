@@ -10,6 +10,8 @@ import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 
 import soot.SootMethod;
 import soot.Unit;
+import soot.Value;
+import soot.ValueBox;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.toolkits.graph.*;
@@ -34,25 +36,56 @@ public class TestSootMethod {
             SootMethod sootMethod = iterator.next().tgt();
 
 
+            Set<Value> hashset=new HashSet<>();
+
+            Set<Value> hashset2=new HashSet<>();
+
             if (sootMethod.getDeclaration().contains("onCreate") && sootMethod.getDeclaringClass().getName().contains("MainActivity")) {
                 System.out.println(sootMethod.getActiveBody().getUnits());
 
+                for(Unit unit:sootMethod.getActiveBody().getUnits())
+                {
+                    for(ValueBox valueBox:unit.getUseBoxes())
+                    {
+                        hashset.add(valueBox.getValue());
+                        boolean flag=true;
+                        for(Value value:hashset2)
+                        {
+                            if(value.equivTo(valueBox.getValue()))
+                            {
+                                flag=false;
+                                break;
 
-                System.out.println("**********************************************");
-                for (Iterator<Edge> iteratorOnCreate = cGraph.edgesOutOf(sootMethod); iteratorOnCreate.hasNext(); ) {
-                    SootMethod sootMethodTgt = iteratorOnCreate.next().tgt();
-                    System.out.println(sootMethodTgt.getBytecodeSignature());
-                    //System.out.println(sootMethodTgt.getActiveBody());
+                            }
+                        }
+                        if(flag)
+                        {
+                            hashset2.add(valueBox.getValue());
+                        }
+                    }
                 }
-                System.out.println("**********************************************");
-//
-////                       结果没有addAll <com.google.common.collect.HashMultiset: create()Lcom/google/common/collect/HashMultiset;>
-////<java.util.HashSet: <init>()V>
-////<com.example.lab418.testwebview2.MainActivity: sendSMS(Ljava/lang/String;Ljava/lang/String;)V>
-////<android.support.v7.app.AppCompatActivity: setContentView(I)V>
-//                    }
+
+
+//                System.out.println("**********************************************");
+//                for (Iterator<Edge> iteratorOnCreate = cGraph.edgesOutOf(sootMethod); iteratorOnCreate.hasNext(); ) {
+//                    SootMethod sootMethodTgt = iteratorOnCreate.next().tgt();
+//                    System.out.println(sootMethodTgt.getBytecodeSignature());
+//                    //System.out.println(sootMethodTgt.getActiveBody());
+//                }
+//                System.out.println("**********************************************");
+////
+//////                       结果没有addAll <com.google.common.collect.HashMultiset: create()Lcom/google/common/collect/HashMultiset;>
+//////<java.util.HashSet: <init>()V>
+//////<com.example.lab418.testwebview2.MainActivity: sendSMS(Ljava/lang/String;Ljava/lang/String;)V>
+//////<android.support.v7.app.AppCompatActivity: setContentView(I)V>
+////                    }
+
+
+                System.out.println(hashset);
 
             }
+
+
         }
 
 

@@ -29,13 +29,18 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
         visited = new HashSet<>();
         doAnalysis();
     }
+    //终止是不再变化？
 
     @Override
-    protected void flowThrough(FlowSet<Value> in, Unit d, FlowSet<Value> out) {
+    protected void flowThrough(FlowSet<Value> in, Unit d, FlowSet<Value> out) {//1.从方法中传入的intent属性数据多不多统计一下
+                                                                                //2.intent属性数据从方法的返回值多不多
+                                                                                //3.intent属性数据从类属性中取。（多个方法数据流分析分析组合）
+                                                                                //4.传入的intent可能是new Intent的。（这个到无所谓，多考虑了呗）
 
-        if (visited.contains(d)) {
-            return;
-        }
+        System.out.println(d);
+//        if (visited.contains(d)) {
+//            return;
+//        }
         visited.add(d);//去除循环
         in.copy(out);
 
@@ -79,7 +84,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 
                         //if (invokeExpr.getMethod().getName().startsWith("get") || invokeExpr.getMethod().getName().startsWith("has")) {
 
-                        if (in.contains(invokeExpr))//intent from in
+                        if (in.contains(invokeExpr.getBase()))//intent from in
                         {
                             out.add(definitionStmt.getLeftOp());
                         }
@@ -133,7 +138,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
             List<ValueBox> usedUnitBox=definitionStmt.getRightOp().getUseBoxes();
 
 
-            for(ValueBox valueBox:usedUnitBox)
+            for(ValueBox valueBox:usedUnitBox)//只要等式右边有一个值被污染了，就认为这个等式左边的值被污染
             {
                 Value value=valueBox.getValue();
                 if(in.contains(value))

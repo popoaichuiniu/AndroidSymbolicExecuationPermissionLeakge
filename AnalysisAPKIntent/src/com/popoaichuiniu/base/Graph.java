@@ -18,6 +18,8 @@ public class Graph {
     private SootMethod sootMethod = null;
     private Unit startUnit = null;
 
+    public Set<Unit> allBranchUnitSet=null;
+
     public Graph(SootMethod sootMethod, Unit startUnit) {
         nodes = new HashSet<>();
         edges = new HashSet<>();
@@ -30,6 +32,8 @@ public class Graph {
         nodes.add(startNode);
         units.add(startUnit);
         unitNodeMap.put(startUnit,startNode);
+
+        allBranchUnitSet=new HashSet<>();
     }
 
     public Map<Unit, Node> getUnitNodeMap() {

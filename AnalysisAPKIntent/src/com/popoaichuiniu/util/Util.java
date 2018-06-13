@@ -1,6 +1,6 @@
 package com.popoaichuiniu.util;
 
-import java.io.BufferedWriter;
+import java.io.File;
 import java.util.*;
 
 import com.google.common.collect.Lists;
@@ -18,6 +18,7 @@ import soot.tagkit.BytecodeOffsetTag;
 import soot.tagkit.Tag;
 import soot.toolkits.graph.BriefUnitGraph;
 import soot.toolkits.graph.UnitGraph;
+import soot.toolkits.scalar.FlowAnalysis;
 import soot.toolkits.scalar.FlowSet;
 import soot.util.Chain;
 
@@ -137,33 +138,30 @@ public class Util {
         return rtoMethods;
     }
 
-    public static  boolean isThirdtyPartyMethod(SootMethod method)
-    {
-        Set<String> thirtyLibraryList=AndroidInfoHelper.getThirdLibraryPackageNameSet();
+    public static boolean isThirdtyPartyMethod(SootMethod method) {
+        Set<String> thirtyLibraryList = AndroidInfoHelper.getThirdLibraryPackageNameSet();
 
-        for(String temp:thirtyLibraryList)
-        {
-            if(method.getDeclaringClass().getPackageName().startsWith(temp))
-            {
-                System.out.println(temp+"第三方库方法"+method.getBytecodeSignature());
+        for (String temp : thirtyLibraryList) {
+            if (method.getDeclaringClass().getPackageName().startsWith(temp)) {
+                System.out.println(temp + "第三方库方法" + method.getBytecodeSignature());
                 return true;
             }
         }
 
-        if(thirtyLibraryList.contains(method.getDeclaringClass().getPackageName()))
-        {
+        if (thirtyLibraryList.contains(method.getDeclaringClass().getPackageName())) {
             return true;
         }
         return false;
     }
 
 
-
     public static boolean isApplicationMethod(SootMethod method) {
+
+
         Chain<SootClass> applicationClasses = Scene.v().getApplicationClasses();
 
         for (SootClass appClass : applicationClasses) {
-            // System.out.println("applicationClass:"+appClass.getName());
+
             if (appClass.getMethods().contains(method)) {
                 return true;
             }
@@ -292,53 +290,122 @@ public class Util {
     }
 
 
+    public static MyUnitGraph getReducedCFG(SootMethod sootMethod, UnitGraph ug, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit, Map<JimpleBody, Body> bodyMap) {
 
-    public static MyUnitGraph getReducedCFG(SootMethod sootMethod, UnitGraph ug, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit) {
+
+        JimpleBody jimpleBody = (JimpleBody) sootMethod.getActiveBody();
+        Body modifiedBody = (Body) jimpleBody.clone();
 
 
         Graph allUnitInPathGraphPrevious = new Graph(sootMethod, targetUnit);
 
         getAllBranchUnit(ug, targetUnit, new HashSet<Unit>(), allUnitInPathGraphPrevious);
 
-        allUnitInPathGraphPrevious.exportGexf(sootMethod.getName() + "_previous");
+        //allUnitInPathGraphPrevious.exportGexf(sootMethod.getName() + "_previous");
 
 
-        MyUnitGraph myUnitGraph = new MyUnitGraph(sootMethod.getActiveBody(),targetUnit);
+        Set<Unit> allUnitUnRelativeIntentAndTargetUnit = new HashSet<>();
+        findUnRelativeNode(targetUnit, sootMethod, allUnitUnRelativeIntentAndTargetUnit, intentFlowAnalysis, ug);
+        MyUnitGraph allNodeIsRelativeGraph = new MyUnitGraph(sootMethod.getActiveBody(), targetUnit);
 
-        List<Unit> needToRemove = new ArrayList<>();
 
-        HashSet<Unit> testNeedToRemove = new HashSet<>(needToRemove);
+        Set<Unit> allUnitsOfGraph = new HashSet<>(allNodeIsRelativeGraph.getAllUnit());
+        deleteUnitAndSimilarEdge(allNodeIsRelativeGraph, allUnitUnRelativeIntentAndTargetUnit, allUnitsOfGraph);
 
-        assert testNeedToRemove.size() == needToRemove.size();
+
+        Set<Unit> needToRemove = new HashSet<>();
 
         Set<Unit> allUnitInPath = new HashSet<>();//路径中所有的语句
 
-        findUnRelativeNode(targetUnit, targetUnit, myUnitGraph, intentFlowAnalysis, allUnitInPath, needToRemove);
+        findUnRelativeNode(targetUnit, targetUnit, ug, intentFlowAnalysis, allUnitInPath, needToRemove);//needToRemove到targetUnit所有路径中需要删除的节点
 
 
-        HashSet<Unit> unitNotInPath = new HashSet<>(myUnitGraph.getAllUnit());
+        MyUnitGraph removeAllUnRelativeNodeInTargetUnitPathGraph = new MyUnitGraph(sootMethod.getActiveBody(), targetUnit);////所有节点为targetUnit上所有和intent相关的UnitGraph
+
+
+        HashSet<Unit> unitNotInPath = new HashSet<>(removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit());
 
         unitNotInPath.removeAll(allUnitInPath);
 
-        needToRemove.addAll(unitNotInPath);//删除不在路径中的节点
+        needToRemove.addAll(unitNotInPath);//添加不在路径中的节点为需要删除
 
+
+        allUnitsOfGraph = new HashSet<>(removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit());
+        deleteUnitAndSimilarEdge(removeAllUnRelativeNodeInTargetUnitPathGraph, needToRemove, allUnitsOfGraph);
+
+
+        HashSet<Unit> oneSuccBranch = new HashSet<>();
+
+        for (Unit branchUnit : allUnitInPathGraphPrevious.allBranchUnitSet)//删除只有一个后继的分支语句
+        {
+            if (removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit().contains(branchUnit)) {
+                if (allNodeIsRelativeGraph.getSuccsOf(branchUnit).size() <= 1) {
+
+                    oneSuccBranch.add(branchUnit);
+                }
+            }
+        }
+
+
+        allUnitsOfGraph = new HashSet<>(removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit());
+        deleteUnitAndSimilarEdge(removeAllUnRelativeNodeInTargetUnitPathGraph, oneSuccBranch, allUnitsOfGraph);
+
+
+        needToRemove.addAll(oneSuccBranch);
+
+
+        for (Unit unit : needToRemove) {
+            modifiedBody.getUnits().remove(jimpleBody.bindings.get(unit));
+        }
+
+        bodyMap.put(jimpleBody, modifiedBody);
+
+
+        Graph allUnitInPathGraphReduced = new Graph(sootMethod, targetUnit);
+
+        getAllBranchUnit(removeAllUnRelativeNodeInTargetUnitPathGraph, targetUnit, new HashSet<Unit>(), allUnitInPathGraphReduced);
+
+        //allUnitInPathGraphReduced.exportGexf(sootMethod.getName() + "_reduced");
+
+
+        return removeAllUnRelativeNodeInTargetUnitPathGraph;
+
+    }
+
+    private static void findUnRelativeNode(Unit targetUnit, SootMethod sootMethod, Set<Unit> allUnitUnRelativeIntentAndTargetUnit, IntentFlowAnalysis intentFlowAnalysis, UnitGraph ug) {
+
+        for (Unit oneUnit : sootMethod.getActiveBody().getUnits())
+
+        {
+            if ((!isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && ug.getPredsOf(oneUnit).size() != 0 && ug.getSuccsOf(oneUnit).size() != 0) {
+
+                allUnitUnRelativeIntentAndTargetUnit.add(oneUnit);
+
+
+            }
+
+        }
+    }
+
+    private static void deleteUnitAndSimilarEdge(MyUnitGraph myUnitGraph, Set<Unit> needToRemove, Set<Unit> allUnit) {
         for (Unit toBeRemovedUnit : needToRemove)
 
         {
             myUnitGraph.deleteUnit(toBeRemovedUnit);
-            allUnitInPath.remove(toBeRemovedUnit);
+            allUnit.remove(toBeRemovedUnit);
+
 
         }
 
 
-        for (Unit oneUnit : allUnitInPath) {
+        for (Unit oneUnit : allUnit) {
             if (myUnitGraph.getPredsOf(oneUnit).size() >= 2) {
 
                 List<Unit> allParentsList = myUnitGraph.getPredsOf(oneUnit);
 
                 HashSet<Unit> allParentsSet = new HashSet<>(allParentsList);//去除重复的父亲
 
-                allParentsSet.remove(oneUnit);//去除自循环
+                allParentsSet.remove(oneUnit);//去除自循环 约减循环
 
                 List<Unit> newParentsList = new ArrayList<>(allParentsSet);
 
@@ -352,7 +419,7 @@ public class Util {
 
                 HashSet<Unit> allChildListSet = new HashSet<>(allChildList);//去除重复的孩子
 
-                allChildListSet.remove(oneUnit);//去除自循环
+                allChildListSet.remove(oneUnit);//去除自循环  约减循环
 
                 List<Unit> newChildList = new ArrayList<>(allChildListSet);
 
@@ -360,77 +427,21 @@ public class Util {
 
 
             }
+
+
         }
-
-
-        Graph allUnitInPathGraphReduced = new Graph(sootMethod, targetUnit);
-
-        getAllBranchUnit(myUnitGraph, targetUnit, new HashSet<Unit>(), allUnitInPathGraphReduced);
-
-        allUnitInPathGraphReduced.exportGexf(sootMethod.getName() + "_reduced");
-
-
-//        Map<Unit, Integer> unitInDegree = new HashMap<>();//每个节点的入度
-//
-//        for (Unit oneUnit : allUnitInPathGraph.getUnits()) {
-//
-//            unitInDegree.put(oneUnit,allUnitInPathGraph.getUnitNodeMap().get(oneUnit).getParents().size() );
-//
-//
-//
-//        }
-//
-        // getIfFlowInfo(ug, targetUnit, unitHasInfo, startUnits, allUnitOfTargetUnit, unitInDegree);
-//
-
-//
-//
-
-//
-//
-//        for (Unit curUnit : pathJoinSet) {//从靠近targetUnit的if开始分析
-//
-//            hasReachReducedCFGAnalysisLimit = false;
-//
-//
-//            Set<Unit> path = new LinkedHashSet<>();
-//
-//            System.out.println("analysis if:" + curUnit);
-//            Pair<Boolean, Unit> jump = analyseIFBlock(curUnit, 0, myUnitGraph, unitHasInfo, new Stack<Pair<Unit, List<String>>>(), intentFlowAnalysis, targetUnit, path, allUnitOfTargetUnit);//this ug should be added exitJstmt
-//
-//            if (hasReachReducedCFGAnalysisLimit) {//这里jump=null
-//                return null;//分析这个if达到了限制,简化的cfg图的时候肯定也是超级大的。
-//            }
-//
-//
-//            if (!jump.getValue0()) {//这个if是不需要分析的,没有语句和intent和目标API相关
-//
-//                Unit joinUnit = jump.getValue1();
-//
-//
-//                myUnitGraph.changeInherit(curUnit, joinUnit);
-//
-//
-//            }
-
-
-        //   }
-
-
-        return myUnitGraph;
-
     }
 
-    private static void findUnRelativeNode(Unit targetUnit, Unit oneUnit, MyUnitGraph myUnitGraph, IntentFlowAnalysis intentFlowAnalysis, Set<Unit> visited, List<Unit> needToRemove) {
+    private static void findUnRelativeNode(Unit targetUnit, Unit oneUnit, UnitGraph unitGraph, IntentFlowAnalysis intentFlowAnalysis, Set<Unit> visited, Set<Unit> needToRemove) {
 
         visited.add(oneUnit);
-        if ((!isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && myUnitGraph.getPredsOf(oneUnit).size() != 0) {
-            //不删除第一个节点
+        if ((!isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && unitGraph.getPredsOf(oneUnit).size() != 0) {
+            //不删除第一个节点targetUnit还有intent相关节点
             needToRemove.add(oneUnit);
         }
-        for (Unit unit : myUnitGraph.getPredsOf(oneUnit)) {
+        for (Unit unit : unitGraph.getPredsOf(oneUnit)) {
             if (!visited.contains(unit)) {
-                findUnRelativeNode(targetUnit, unit, myUnitGraph, intentFlowAnalysis, visited, needToRemove);
+                findUnRelativeNode(targetUnit, unit, unitGraph, intentFlowAnalysis, visited, needToRemove);
             }
 
         }
@@ -495,6 +506,10 @@ public class Util {
         visited.add(unit);
 
         allUnitInPathGraph.addNode(new Node(unit));
+
+        if (ug.getSuccsOf(unit).size() >= 2) {
+            allUnitInPathGraph.allBranchUnitSet.add(unit);
+        }
 
         if (ug.getPredsOf(unit).size() == 0) {
 
@@ -706,14 +721,27 @@ public class Util {
         }
         FlowSet<Value> intentRelativeValue = intentFlowAnalysis.getFlowBefore(unit);
 
-        for (Value value : intentRelativeValue) {
-            for (ValueBox valueBox : unit.getUseBoxes()) {
-                if (value.equivTo(valueBox.getValue()))//--------------------
-                {
+        FlowSet<Value> intentAfter = intentFlowAnalysis.getFlowAfter(unit);
+
+
+        for (Value value : intentAfter) {
+            for (ValueBox valueBox : unit.getDefBoxes()) {
+                if (value.equivTo(valueBox.getValue())) {
                     return true;
                 }
             }
         }
+
+        for (Value value : intentRelativeValue) {
+            for (ValueBox valueBox : unit.getUseBoxes()) {
+                if (value.equivTo(valueBox.getValue())) {
+                    return true;
+                }
+
+            }
+        }
+
+
         return false;
     }
 
@@ -777,6 +805,36 @@ public class Util {
         } else {
             return false;
         }
+
+    }
+
+    public static void testInitial(List<SootMethod> ea_entryPoints, List<SootMethod> roMethods, Chain<SootClass> applicationClasses, String appPath) {
+        WriteFile writeFile = new WriteFile(new File(appPath).getName() + ".txt", false);
+
+        writeFile.writeStr("all application class:" + "\n\n\n\n");
+        for (SootClass sootClass : applicationClasses) {
+            writeFile.writeStr(sootClass.getName() + "\n");
+        }
+        writeFile.writeStr("\n\n\n\n");
+
+        writeFile.writeStr("ea_tryPoints:" + "\n\n\n\n");
+
+
+        for (SootMethod sootMethod : ea_entryPoints) {
+            writeFile.writeStr(sootMethod.getBytecodeSignature() + "\n");
+        }
+        writeFile.writeStr("\n\n\n\n");
+
+
+        writeFile.writeStr("roMethods:" + "\n\n\n\n");
+
+        for (SootMethod sootMethod : roMethods) {
+            writeFile.writeStr(sootMethod.getBytecodeSignature() + "\n");
+        }
+
+
+        writeFile.close();
+
 
     }
 
