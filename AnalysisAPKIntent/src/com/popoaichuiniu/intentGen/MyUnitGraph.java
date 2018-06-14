@@ -90,6 +90,38 @@ public class MyUnitGraph extends BriefUnitGraph {
 
             }
 
+//            for(Unit p:parents)
+//            {
+//                List<Unit> pSuccessorList=unitToSuccs.get(p);
+//                pSuccessorList.addAll(successors);
+//                for(Iterator<Unit> iterator=pSuccessorList.iterator();iterator.hasNext();)
+//                {
+//                    Unit pSuccessor=iterator.next();
+//                    if(pSuccessor==unit)
+//                    {
+//                        iterator.remove();
+//                    }
+//                }
+//
+//
+//                unitToSuccs.put(p,pSuccessorList);
+//            }
+//
+//            for(Unit s:successors)
+//            {
+//                List<Unit> sParentsList=unitToPreds.get(s);
+//                sParentsList.addAll(parents);
+//                for(Iterator<Unit> iterator=sParentsList.iterator();iterator.hasNext();)
+//                {
+//                    Unit sParent=iterator.next();
+//                    if(sParent==unit)
+//                    {
+//                        iterator.remove();
+//                    }
+//                }
+//                unitToPreds.put(s,sParentsList);
+//            }
+
             unitToSuccs.remove(unit);
             unitToPreds.remove(unit);
 

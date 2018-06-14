@@ -22,7 +22,7 @@ import soot.tagkit.Tag;
 import soot.toolkits.graph.BriefUnitGraph;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.SimpleLocalDefs;
-import soot.util.Chain;
+
 
 import java.io.*;
 import java.util.*;
@@ -31,11 +31,12 @@ import java.util.regex.Pattern;
 
 import static com.popoaichuiniu.util.Util.testInitial;
 
+
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
 
     private static boolean exeModelTest = false;
 
-    private String appPath = null;
+    public String appPath = null;
 
     Set<Triplet<Integer, String, String>> targets = new LinkedHashSet<Triplet<Integer, String, String>>();
     private boolean pathLimitEnabled = false;
@@ -152,21 +153,30 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         roMethods.add(androidCallGraphHelper.getEntryPoint());
 
 
-        testInitial(ea_entryPoints, roMethods, Scene.v().getApplicationClasses(), appPath);
+        testInitial(ea_entryPoints, roMethods, Scene.v().getApplicationClasses(), appPath);//ok
 
 
-        for (SootMethod sootMethod : roMethods) {
+        try {
 
 
-            analysisSootMethod(sootMethod, androidCallGraphHelper.getCg(), ea_entryPoints, roMethods);
+            for (SootMethod sootMethod : roMethods) {
 
 
-            try {
+                analysisSootMethod(sootMethod, androidCallGraphHelper.getCg(), ea_entryPoints, roMethods);
 
-                ifReducedWriter.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
+
+                try {
+
+                    ifReducedWriter.flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
+
+        } catch (RuntimeException e) {
+            WriteFile writeFileAppException = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "appException.txt", true);
+            writeFileAppException.writeStr(appPath + "\n");
+            writeFileAppException.close();
         }
 
 
@@ -300,10 +310,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         HashSet<SootMethod> allSootMethodsInPathOfEAToTarget = new HashSet<>(roMethods);
 
 
-        allSootMethodsInPathOfEAToTarget.retainAll(aboutUnitNeedMethods);
+        allSootMethodsInPathOfEAToTarget.retainAll(aboutUnitNeedMethods);//ok
+
 
         MyCallGraph myCallGraph = new MyCallGraph(allSootMethodsInPathOfEAToTarget, cg, sootMethod, unit, this);
-        writeFileCallGraphSize.writeStr("myCallGraph_P:" + myCallGraph.allMethods.size() + " " + myCallGraph.allEdges.size() + " " + new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.writeStr("myCallGraph_P:" + "方法数：" + myCallGraph.allMethods.size() + " " + "边数：" + myCallGraph.allEdges.size() + " " + new File(appPath).getName() + "\n");
         writeFileCallGraphSize.flush();
         //myCallGraph.exportGexf(new File(appPath).getName());
 
@@ -360,7 +371,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     Map<JimpleBody, Body> bodyMap = null;
 
-    public int doAnalysisOnUnit(MyCallGraph.MyPairUnitToEdge myPairUnitToEdge, SootMethod sootMethod, IntentFlowAnalysis intentFlowAnalysis, SimpleLocalDefs defs, UnitGraph ug) {
+    public boolean doAnalysisOnUnit(MyCallGraph.MyPairUnitToEdge myPairUnitToEdge, SootMethod sootMethod, IntentFlowAnalysis intentFlowAnalysis, SimpleLocalDefs defs, UnitGraph ug) {
 
 
         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(myPairUnitToEdge.srcUnit.toString());
@@ -372,7 +383,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
         List<List<Unit>> finalPaths = new ArrayList<>();
-//
+
 //        hasReachFinalPathSizeLimit = false;
 //
 //        getAllPathInMethod(myPairUnitToEdge.srcUnit, null, ug, finalPaths, new ArrayList<Unit>(), new HashSet<UnitEdge>());//欧拉路径
@@ -397,7 +408,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         bodyMap = new HashMap<JimpleBody, Body>();
 
-        MyUnitGraph myUnitGraph = Util.getReducedCFG(sootMethod, ug, intentFlowAnalysis, myPairUnitToEdge.srcUnit, bodyMap);
+        MyUnitGraph myUnitGraph = Util.getReducedCFG(sootMethod, ug, intentFlowAnalysis, myPairUnitToEdge.srcUnit, bodyMap, defs);
 
         hasReachFinalPathSizeLimit = false;
 
@@ -427,7 +438,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
 
         if (hasReachFinalPathSizeLimit) {
-            return -1;
+            return false;
         }
 
 
@@ -452,7 +463,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         allSootMethodsAllUnitsTargetUnitInMethodInfo.put(sootMethod, allUnitsTargetUnitInMethodInfo);
 
 
-        return myUnitGraph.getAllUnit().size();
+        return true;
 
 
     }
@@ -576,7 +587,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                 return;
             } else {
-                throw new RuntimeException("错误");
+                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("非主函数入度为0");
+                throw new RuntimeException("非主函数入度为0");
             }
         }
 
@@ -596,6 +608,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             SootMethod sootMethodSrc = inEdge.src();
             Unit srcUnit = inEdge.srcUnit();
             if (srcUnit == null) {
+
+
+                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("srcUnit == null");
                 throw new RuntimeException();
             }
 
@@ -746,6 +761,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                             } else {
+                                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("extraData is not from intent or bundle");
                                 throw new RuntimeException("extraData is not from intent or bundle");
                             }
                         }
@@ -1106,6 +1122,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 List<Unit> currPathList = new ArrayList<Unit>(path);
                 int indexOfUnit = currPathList.indexOf(unit);
                 if (indexOfUnit == -1) {
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error(unit + " is not in path");
                     throw new RuntimeException(unit + " is not in path");
                 }
                 Unit succ = currPathList.get(indexOfUnit - 1);
@@ -1366,6 +1383,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                 }
 
                                 if (!currPath.contains(intentDef)) {
+                                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("isDefInPathAndLatest工作不正常");
                                     throw new RuntimeException("isDefInPathAndLatest工作不正常");
                                 }
 
@@ -1397,6 +1415,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                         }
                     }
                 } else {
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("getAction竟然不是实例调用");
+
                     throw new RuntimeException("getAction竟然不是实例调用");
                 }
             }
@@ -1477,7 +1497,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("test");
                     //-------------是可能的，可能的for循环中的i
                     WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isDefInPathAndLatest.txt", true);
-                    writeFile.writeStr(usedLocal + " " + inDef + " " + otherDef + " " + appPath);
+                    writeFile.writeStr(usedLocal + " " + inDef + " " + otherDef + " " + appPath + "\n");
                     writeFile.close();
                     return false;
                 }
@@ -1485,7 +1505,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             return true; // inDef is in the path and is the latest definition along that path
         } else { // inDef is not in the path, so return false
             WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isDefInPathAndLatest.txt", true);
-            writeFile.writeStr(usedLocal + " " + inDef + " " + "not in path" + " " + appPath);
+            writeFile.writeStr(usedLocal + " " + inDef + " " + "not in path" + " " + appPath + "\n");
             writeFile.close();
             return false;
         }
@@ -1655,6 +1675,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                     opVal2 = rightValue.getValue0();
 
                                     if (opVal1 == null && opVal2 == null) {
+
+                                        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("equals异常");
 
                                         throw new RuntimeException("equals异常");
                                         //findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);//其实也没用
@@ -1939,6 +1961,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             case "<=":
                 return ">";
             default:
+                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("invalid symbol passed to negateSymbol(): " + symbol);
                 throw new RuntimeException("invalid symbol passed to negateSymbol(): " + symbol);
         }
     }
@@ -1983,6 +2006,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             //logger.error("currExpr should not be null");
             //logger.debug("opExpr1: " + opExpr1);
             //logger.debug("opExpr2: " + opExpr2);
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("currExpr should not be null");
             throw new RuntimeException("currExpr should not be null");
         }
         returnExpr = condExpr;
@@ -2083,6 +2107,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             }
             decls.add(newDecl);
         } else {
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("I don't know what to do with this Value's type: " + opVal.getType());
             throw new RuntimeException("I don't know what to do with this Value's type: " + opVal.getType());
         }
 
@@ -2195,6 +2220,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                             List<Unit> currPathList = new ArrayList<Unit>(currPath);
                                             int indexOfUnit = currPathList.indexOf(inUnit);
                                             if (indexOfUnit == -1) {
+                                                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error(inUnit + " is not in path");
                                                 throw new RuntimeException(inUnit + " is not in path");
                                             }
                                             Unit succ = currPathList.get(indexOfUnit - 1);
@@ -2303,6 +2329,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                 } else {
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("unhandle case :" + jVInvokeExpr.toString());
                     throw new RuntimeException("unhandle case :" + jVInvokeExpr.toString());
                 }
 
@@ -2568,7 +2595,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             if (modifiedBody.getUnits().getSuccOf(inUnitMap) != succMap) {
                 WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isFallThrough.txt", true);
-                writeFile.writeStr(body.getMethod().getBytecodeSignature() + " " + inUnit + " " + succ + " " + appPath);
+                writeFile.writeStr(body.getMethod().getBytecodeSignature() + " " + inUnit + " " + succ + " " + appPath + "\n");
                 writeFile.close();
             }
 
@@ -2595,6 +2622,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             origVal = cmpOp;
 
         } else {
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled cmpOp for: " + potentialCmpUnit);
+
             throw new RuntimeException("Unhandled cmpOp for: " + potentialCmpUnit);
         }
         return new Quartet<Value, String, String, Unit>(origVal, newDecl, newAssert, defUnit);
@@ -2705,7 +2734,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         } else {
 
-
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("不能处理equals的两个参数的类型情况" + equalsUnit);
             throw new RuntimeException("不能处理equals的两个参数的类型情况" + equalsUnit);//---------------------------------------------------------
         }
 
@@ -2901,6 +2930,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                         }
                                     }
                                 } else {
+                                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled case for: " + keyLocalDefStmt.getRightOp());
+
                                     throw new RuntimeException("Unhandled case for: " + keyLocalDefStmt.getRightOp());
                                 }
 
@@ -3015,6 +3046,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                     }
                                     //throw new RuntimeException("key的值来源于静态属性");
                                 } else {
+
+                                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
                                     throw new RuntimeException("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
                                 }
 
@@ -3156,11 +3189,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     }
                     MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath());
 
-                    Thread childThread = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-
-                            WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
+//                    Thread childThread = new Thread(new Runnable() {
+//                        @Override
+//                        public void run() {
 
 
                             try {
@@ -3173,6 +3204,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             }
 
 
+                            WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
+
+                            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "开始分析" + "\n");
                             IntentConditionTransformSymbolicExcutation intentConditionTransform = new IntentConditionTransformSymbolicExcutation(file.getAbsolutePath());
                             intentConditionTransform.run();
                             saveIntent(intentConditionTransform.allIntentConditionOfOneApp, file.getAbsolutePath());
@@ -3189,20 +3223,20 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             }
 
 
-                        }
+//                        }
+//
+//                    });
+//
+//                    childThread.start();
+//
+//                    try {
+//                        childThread.join();
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
 
-                    });
 
-                    childThread.start();
-
-                    try {
-                        childThread.join();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-
-
-//                    break;//------------------------------------
+                    break;//------------------------------------
 
 
                 }
