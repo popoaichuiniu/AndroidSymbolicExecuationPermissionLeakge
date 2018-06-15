@@ -24,7 +24,7 @@ public class MyLogger {
         {
             return runLogger;
         }
-        String logfilePathRun="AnalysisAPKIntent/logger_file/"+logger.getName()+".log";
+        String logfilePathRun="/home/zms/logger_file/"+logger.getName()+".log";
         try {
         runLogger.addAppender(new FileAppender(new PatternLayout("%d %p [%t] %C.%M(%L) | %m%n"), logfilePathRun));
         runLogger.addAppender(new ConsoleAppender(new PatternLayout("%d %p [%t] %C.%M(%L) | %m%n")));
@@ -39,7 +39,7 @@ public class MyLogger {
 
     public MyLogger(String loggerName) {
         this.logger=Logger.getLogger(loggerName);
-        String logfilePath="AnalysisAPKIntent/logger_file/"+loggerName+".log";
+        String logfilePath="/home/zms/logger_file/"+loggerName+".log";
         try {
             this.logger.addAppender(new FileAppender(new PatternLayout("%d %p [%t] %C.%M(%L) | %m%n"), logfilePath));
         }

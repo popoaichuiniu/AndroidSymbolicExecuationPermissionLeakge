@@ -4,8 +4,6 @@ import java.io.File;
 import java.util.*;
 
 import com.google.common.collect.Lists;
-import com.popoaichuiniu.base.Graph;
-import com.popoaichuiniu.base.Node;
 import com.popoaichuiniu.intentGen.*;
 import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
@@ -18,7 +16,6 @@ import soot.tagkit.BytecodeOffsetTag;
 import soot.tagkit.Tag;
 import soot.toolkits.graph.BriefUnitGraph;
 import soot.toolkits.graph.UnitGraph;
-import soot.toolkits.scalar.FlowSet;
 import soot.toolkits.scalar.SimpleLocalDefs;
 import soot.util.Chain;
 
@@ -290,139 +287,13 @@ public class Util {
     }
 
 
-    public static MyUnitGraph getReducedCFG(SootMethod sootMethod, UnitGraph ug, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit, Map<JimpleBody, Body> bodyMap, SimpleLocalDefs defs) {
-
-
-        JimpleBody jimpleBody = (JimpleBody) sootMethod.getActiveBody();
-        Body modifiedBody = (Body) jimpleBody.clone();
-
-
-        Graph allUnitInPathGraphPrevious = new Graph(sootMethod, targetUnit);
-
-        getAllBranchUnit(ug,  new HashSet<>(jimpleBody.getUnits()), allUnitInPathGraphPrevious);
-
-       // allUnitInPathGraphPrevious.exportGexf(sootMethod.getName() + "_previous");
-
-
-        Set<Unit> needToRemove = new HashSet<>();//需要删除的语句
-
-        Set<Unit> unitIntentRelativeAndStartStop = new HashSet<>();//和intent相关语句还有起点和终点
-
-        findUnRelativeNode(targetUnit, sootMethod, needToRemove, intentFlowAnalysis, ug,unitIntentRelativeAndStartStop);
-
-
-        Set<Unit> relativeUnitDefUnit = new HashSet<>();
-
-        for (Unit relativeUnit : unitIntentRelativeAndStartStop) {//relativeUnit中使用的变量的定义语句不删除
-            for (ValueBox valueBox : relativeUnit.getUseBoxes()) {
-                Value value = valueBox.getValue();
-                if (value instanceof Local) {
-                    Local local = (Local) value;
-                    for (Unit defUnit : defs.getDefsOfAt(local, relativeUnit)) {
-
-                        needToRemove.remove(defUnit);
-
-                        relativeUnitDefUnit.add(defUnit);
-
-                        removeUseLocalDefUnit(defs, needToRemove, defUnit, relativeUnitDefUnit);
-                    }
-                }
-
-            }
-        }
-
-        MyUnitGraph removeAllUnRelativeNodeInTargetUnitPathGraph = new MyUnitGraph(jimpleBody, targetUnit);
-        Set<Unit> allUnitsOfGraph = new HashSet<>(removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit());
-        deleteUnitAndSimilarEdge(removeAllUnRelativeNodeInTargetUnitPathGraph, needToRemove, allUnitsOfGraph, allUnitInPathGraphPrevious.allBranchUnitSet);//删除不相关的点
-
-
-
-
-        for (Unit unit : needToRemove) {
-            modifiedBody.getUnits().remove(jimpleBody.bindings.get(unit));
-        }
-
-        bodyMap.put(jimpleBody, modifiedBody);
-
-
-        Graph allUnitInPathGraphReduced = new Graph(sootMethod, targetUnit);
-
-        getAllBranchUnit(removeAllUnRelativeNodeInTargetUnitPathGraph, removeAllUnRelativeNodeInTargetUnitPathGraph.getAllUnit(), allUnitInPathGraphReduced);
-
-        //allUnitInPathGraphReduced.exportGexf(sootMethod.getName() + "_reduced");
-
-
-        return removeAllUnRelativeNodeInTargetUnitPathGraph;
-
-    }
-
-    private static void getAllBranchUnit(UnitGraph ug, Set<Unit> allUnits, Graph allUnitInPathGraph) {
-
-        for(Unit unit:allUnits)
-        {
-            allUnitInPathGraph.addNode(new Node(unit));
-
-            if(ug.getSuccsOf(unit).size()>=2)
-            {
-                allUnitInPathGraph.allBranchUnitSet.add(unit);
-            }
-
-            for(Unit p:ug.getPredsOf(unit))
-            {
-                allUnitInPathGraph.addEdge(new Node(p),new Node(unit));
-            }
-
-            for(Unit s:ug.getSuccsOf(unit))
-            {
-                allUnitInPathGraph.addEdge(new Node(unit),new Node(s));
-            }
-        }
-
-
-    }
-
-    private static void findUnRelativeNode(Unit targetUnit, SootMethod sootMethod, Set<Unit> unitNeedToRemove, IntentFlowAnalysis intentFlowAnalysis, UnitGraph ug,Set<Unit> unitIntentRelativeAndStartStop) {
-
-        for (Unit oneUnit : sootMethod.getActiveBody().getUnits())
-
-        {
-            if ((!isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && ug.getPredsOf(oneUnit).size() != 0 && ug.getSuccsOf(oneUnit).size() != 0) {
-
-                unitNeedToRemove.add(oneUnit);
-
-
-            }
-            else
-            {
-                unitIntentRelativeAndStartStop.add(oneUnit);
-            }
-
-        }
-    }
-
-
-    private static void removeUseLocalDefUnit(SimpleLocalDefs defs, Set<Unit> needToRemove, Unit defUnit, Set<Unit> relativeUnitDefUnit) {
-        if (defUnit instanceof DefinitionStmt) {
-            DefinitionStmt definitionStmt = (DefinitionStmt) defUnit;
-            if (definitionStmt.getRightOp() instanceof Local) {
-                Local localTemp = (Local) definitionStmt.getRightOp();
-                for (Unit defUnitOfLocalTemp : defs.getDefsOfAt(localTemp, defUnit)) {
-                    needToRemove.remove(defUnitOfLocalTemp);
-                    relativeUnitDefUnit.add(defUnitOfLocalTemp);
-                    removeUseLocalDefUnit(defs, needToRemove, defUnitOfLocalTemp, relativeUnitDefUnit);
-                }
-
-            }
-        }
-    }
-
     private static void findUnRelativeNode(Unit targetUnit, SootMethod sootMethod, Set<Unit> allUnitUnRelativeIntentAndTargetUnit, IntentFlowAnalysis intentFlowAnalysis, UnitGraph ug, SimpleLocalDefs defs) {
 
         HashSet<Unit> relativeUnitSet = new HashSet<>();
         for (Unit oneUnit : sootMethod.getActiveBody().getUnits())
 
         {
-            if ((!isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && ug.getPredsOf(oneUnit).size() != 0 && ug.getSuccsOf(oneUnit).size() != 0) {
+            if ((!MyUnitGraph.isAboutIntentOrTargetAPI(oneUnit, intentFlowAnalysis, targetUnit)) && ug.getPredsOf(oneUnit).size() != 0 && ug.getSuccsOf(oneUnit).size() != 0) {
 
                 allUnitUnRelativeIntentAndTargetUnit.add(oneUnit);
 
@@ -447,98 +318,6 @@ public class Util {
             }
         }
 
-
-    }
-
-    private static void deleteUnitAndSimilarEdge(MyUnitGraph myUnitGraph, Set<Unit> needToRemove, Set<Unit> allUnit, Set<Unit> branchUnitSet) {
-
-
-        HashSet<Unit> removeSet = new HashSet<>(needToRemove);
-
-        while (!removeSet.isEmpty()) {
-
-            for (Unit oneUnit : allUnit) {
-
-                deleteRepeatEdge(myUnitGraph, removeSet, oneUnit, needToRemove, branchUnitSet);
-
-
-            }
-
-            while (!removeSet.isEmpty()) {
-
-                Iterator<Unit> iterator = removeSet.iterator();
-
-                Unit toBeRemovedUnit = iterator.next();//第一个元素
-                myUnitGraph.deleteUnit(toBeRemovedUnit);
-                allUnit.remove(toBeRemovedUnit);
-                iterator.remove();
-
-                HashSet<Unit> parents = new HashSet<>(myUnitGraph.getPredsOf(toBeRemovedUnit));
-
-                for (Unit p : parents) {
-                    deleteRepeatEdge(myUnitGraph, removeSet, p, needToRemove, branchUnitSet);
-                }
-
-                HashSet<Unit> successors = new HashSet<>(myUnitGraph.getSuccsOf(toBeRemovedUnit));
-
-                for (Unit s : successors) {
-                    deleteRepeatEdge(myUnitGraph, removeSet, s, needToRemove, branchUnitSet);
-                }
-
-
-            }
-
-            for (Unit oneUnit : allUnit) {
-
-
-                deleteRepeatEdge(myUnitGraph, removeSet, oneUnit, needToRemove, branchUnitSet);
-
-
-            }
-        }
-
-
-    }
-
-    private static void deleteRepeatEdge(MyUnitGraph myUnitGraph, HashSet<Unit> removeSet, Unit oneUnit, Set<Unit> needToRemove, Set<Unit> branchUnitSet) {
-
-        List<Unit> allParentsList = myUnitGraph.getPredsOf(oneUnit);
-
-        HashSet<Unit> allParentsSet = new HashSet<>(allParentsList);//去除重复的父亲
-
-        allParentsSet.remove(oneUnit);//去除自循环 约减循环
-
-        List<Unit> newParentsList = new ArrayList<>(allParentsSet);
-
-        myUnitGraph.getUnitToPreds().put(oneUnit, newParentsList);
-
-
-        List<Unit> allChildList = myUnitGraph.getSuccsOf(oneUnit);
-
-        HashSet<Unit> allChildListSet = new HashSet<>(allChildList);//去除重复的孩子
-
-        allChildListSet.remove(oneUnit);//去除自循环  约减循环
-
-        if (allChildListSet.size() == 1 && (branchUnitSet.contains(oneUnit))) {
-            removeSet.add(oneUnit);
-            needToRemove.add(oneUnit);
-        }
-
-        List<Unit> newChildList = new ArrayList<>(allChildListSet);
-
-        myUnitGraph.getUnitToSuccs().put(oneUnit, newChildList);
-    }
-
-    private static void findAllUnitInToTargetUnitPath( Unit oneUnit, UnitGraph unitGraph, Set<Unit> visited) {
-
-        visited.add(oneUnit);
-
-        for (Unit unit : unitGraph.getPredsOf(oneUnit)) {
-            if (!visited.contains(unit)) {
-                findAllUnitInToTargetUnitPath(unit, unitGraph, visited);
-            }
-
-        }
 
     }
 
@@ -593,7 +372,6 @@ public class Util {
         }
 
     }
-
 
 
 //    private static Pair<Boolean, Unit> analyseIFBlock(Unit unit, int branchLayer, UnitGraph ug, Map<Unit, Set<String>> unitHasInfo, Stack<Pair<Unit, List<String>>> ifStack, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit, Set<Unit> path, Set<Unit> allUnitOfTargetUnit) {
@@ -781,37 +559,6 @@ public class Util {
 //
 //
 //    }
-
-    private static boolean isAboutIntentOrTargetAPI(Unit unit, IntentFlowAnalysis intentFlowAnalysis, Unit targetUnit) {
-
-        if (unit == targetUnit) {
-            return true;
-        }
-        FlowSet<Value> intentRelativeValue = intentFlowAnalysis.getFlowBefore(unit);
-
-        FlowSet<Value> intentAfter = intentFlowAnalysis.getFlowAfter(unit);
-
-
-        for (Value value : intentAfter) {
-            for (ValueBox valueBox : unit.getDefBoxes()) {
-                if (value.equivTo(valueBox.getValue())) {
-                    return true;
-                }
-            }
-        }
-
-        for (Value value : intentRelativeValue) {
-            for (ValueBox valueBox : unit.getUseBoxes()) {
-                if (value.equivTo(valueBox.getValue())) {
-                    return true;
-                }
-
-            }
-        }
-
-
-        return false;
-    }
 
     public static boolean unitNeedAnalysis(Unit unit, SootMethod sootMethod, Set<Triplet<Integer, String, String>> targets) {
         BytecodeOffsetTag tag = Util.extractByteCodeOffset(unit);

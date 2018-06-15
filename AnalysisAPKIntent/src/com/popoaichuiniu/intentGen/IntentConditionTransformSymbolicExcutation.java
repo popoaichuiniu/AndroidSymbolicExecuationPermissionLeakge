@@ -29,12 +29,10 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.popoaichuiniu.util.Util.testInitial;
-
 
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
 
-    private static boolean exeModelTest = false;
+    private static boolean exeModelTest = true;
 
     public String appPath = null;
 
@@ -63,6 +61,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
     private HashSet<Intent> allIntentConditionOfOneApp = null;
+
+    private MyUnitGraph myUnitGraphReduced=null;
 
 
     /**
@@ -153,7 +153,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         roMethods.add(androidCallGraphHelper.getEntryPoint());
 
 
-        testInitial(ea_entryPoints, roMethods, Scene.v().getApplicationClasses(), appPath);//ok
+        //testInitial(ea_entryPoints, roMethods, Scene.v().getApplicationClasses(), appPath);//ok
 
 
         try {
@@ -408,13 +408,25 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         bodyMap = new HashMap<JimpleBody, Body>();
 
-        MyUnitGraph myUnitGraph = Util.getReducedCFG(sootMethod, ug, intentFlowAnalysis, myPairUnitToEdge.srcUnit, bodyMap, defs);
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("开始约简unitgraph" + sootMethod.getBytecodeSignature() + "#" + myPairUnitToEdge.srcUnit);
+
+        MyUnitGraph myUnitGraph = new MyUnitGraph(sootMethod.getActiveBody(), myPairUnitToEdge.srcUnit,appPath);
+
+        myUnitGraph.reducedCFG( ug, intentFlowAnalysis,  bodyMap, defs);
+
+        myUnitGraphReduced=myUnitGraph;
+
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("约简结束！");
+
+
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("unitgraph节点数" + ":" + myUnitGraph.getAllUnit().size());
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("unitgraph！寻找所有路径" + sootMethod.getBytecodeSignature() + "#" + myPairUnitToEdge.srcUnit);
 
         hasReachFinalPathSizeLimit = false;
 
         getAllPathInMethod(myPairUnitToEdge.srcUnit, null, myUnitGraph, finalPathsReduced, new ArrayList<Unit>(), new HashSet<UnitEdge>());
 
-
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("unitgraph！寻找路径完毕");
         if (hasReachFinalPathSizeLimit) {
 
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("化简CFG的finalPathsReduced达到限制！");
@@ -432,7 +444,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
         try {
-            ifReducedWriter.write(finalPaths.size() + "*******************************" + finalPathsReduced.size() + "************************" + (finalPaths.size() - finalPathsReduced.size()) + "&&&&&&&&&" + myUnitGraph.getAllUnit().size() + " " + sootMethod.getName() + " " + myPairUnitToEdge.srcUnit + "\n");
+            ifReducedWriter.write(finalPaths.size() + "*******************************" + finalPathsReduced.size() + "************************" + (finalPaths.size() - finalPathsReduced.size()) + "&&&&&&&&&" + new File(appPath).getName() + "#" + myUnitGraph.getAllUnit().size() + "#" + sootMethod.getName() + "#" + myPairUnitToEdge.srcUnit + "\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -1482,6 +1494,12 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
     private boolean isDefInPathAndLatest(List<Unit> path, Unit inDef, Local usedLocal, Unit usedUnit, SimpleLocalDefs defs) {//---------------------------------------
+        if(!myUnitGraphReduced.allIntentUnitFromStartToTargetUnitInpath.contains(usedUnit))
+        {
+            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "Error.txt", true);
+            writeFile.writeStr(usedUnit+" "+appPath + "\n");
+            writeFile.close();
+        }
         if (path.contains(inDef)) { // does the path contain the definition
             for (Unit otherDef : defs.getDefsOfAt(usedLocal, usedUnit)) { // check other defs of usedLocal at usedUnit to determine if inDef is the latestDef in path
                 if (inDef.equals(otherDef)) { // continue if inDef equals otherDef
@@ -1497,16 +1515,20 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("test");
                     //-------------是可能的，可能的for循环中的i
                     WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isDefInPathAndLatest.txt", true);
-                    writeFile.writeStr(usedLocal + " " + inDef + " " + otherDef + " " + appPath + "\n");
+                    writeFile.writeStr(usedLocal + " " + inDef + " " + otherDef + " #"+usedUnit+"# " + appPath + "\n");
                     writeFile.close();
                     return false;
                 }
             }
             return true; // inDef is in the path and is the latest definition along that path
         } else { // inDef is not in the path, so return false
-            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isDefInPathAndLatest.txt", true);
-            writeFile.writeStr(usedLocal + " " + inDef + " " + "not in path" + " " + appPath + "\n");
-            writeFile.close();
+            if((!myUnitGraphReduced.allIntentUnitFromStartToTargetUnitInpath.contains(inDef))&&myUnitGraphReduced.allIntentUnitFromStartToTargetUnitInpath.contains(usedUnit))
+            {
+                WriteFile writeFile = new WriteFile("AnalysisAPKIntent/testFunctions/" + "isDefInPathAndLatest.txt", true);
+                writeFile.writeStr(usedLocal + " " + inDef + " " + "not in path" +" #"+usedUnit+"# " + appPath + "\n");
+                writeFile.close();
+            }
+
             return false;
         }
     }
@@ -2932,7 +2954,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                 } else {
                                     MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled case for: " + keyLocalDefStmt.getRightOp());
 
-                                    throw new RuntimeException("Unhandled case for: " + keyLocalDefStmt.getRightOp());
+                                    //throw new RuntimeException("Unhandled case for: " + keyLocalDefStmt.getRightOp());
                                 }
 
                             }
@@ -3194,33 +3216,33 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                        public void run() {
 
 
-                            try {
-                                appReachFinalPathSizeLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reachFinalPathSizeLimitAPP/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
-                                reduceCFGAnalysisLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reduceCFGAnalysisLimit/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
+                    try {
+                        appReachFinalPathSizeLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reachFinalPathSizeLimitAPP/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
+                        reduceCFGAnalysisLimitWriter = new BufferedWriter(new FileWriter("app_analysis_results/reduceCFGAnalysisLimit/" + file.getAbsolutePath().replaceAll("/|\\.", "_") + ".txt"));
 
 
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
 
-                            WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
+                    WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
 
-                            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "开始分析" + "\n");
-                            IntentConditionTransformSymbolicExcutation intentConditionTransform = new IntentConditionTransformSymbolicExcutation(file.getAbsolutePath());
-                            intentConditionTransform.run();
-                            saveIntent(intentConditionTransform.allIntentConditionOfOneApp, file.getAbsolutePath());
-                            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "分析结束" + "\n");
-                            writeFileHasBeenProcessedApp.writeStr(file.getAbsolutePath() + "\n");
-                            writeFileHasBeenProcessedApp.close();
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "开始分析" + "\n");
+                    IntentConditionTransformSymbolicExcutation intentConditionTransform = new IntentConditionTransformSymbolicExcutation(file.getAbsolutePath());
+                    intentConditionTransform.run();
+                    saveIntent(intentConditionTransform.allIntentConditionOfOneApp, file.getAbsolutePath());
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "分析结束" + "\n");
+                    writeFileHasBeenProcessedApp.writeStr(file.getAbsolutePath() + "\n");
+                    writeFileHasBeenProcessedApp.close();
 
 
-                            try {
-                                appReachFinalPathSizeLimitWriter.close();
-                                reduceCFGAnalysisLimitWriter.close();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                    try {
+                        appReachFinalPathSizeLimitWriter.close();
+                        reduceCFGAnalysisLimitWriter.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
 
 //                        }
@@ -3236,7 +3258,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                    }
 
 
-                    break;//------------------------------------
+                    // break;//------------------------------------
 
 
                 }

@@ -165,7 +165,7 @@ public class TestCFGReduced {//没有使用
         BriefUnitGraph briefUnitGraph = new BriefUnitGraph(sootMethod.getActiveBody());
 
         IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(briefUnitGraph);
-//        MyUnitGraph myUnitGraph = Util.getReducedCFG(sootMethod, intentFlowAnalysis, unit);
+//        MyUnitGraph myUnitGraph = Util.reducedCFG(sootMethod, intentFlowAnalysis, unit);
 //        int countIfPrevious = 0;
 //        for (Unit unit : sootMethod.getActiveBody().getUnits()) {
 //

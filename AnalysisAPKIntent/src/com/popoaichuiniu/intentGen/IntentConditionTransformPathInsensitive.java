@@ -94,8 +94,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                 MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("2222222222222222222222222222222222222");
 
 
-                                if(!intentFlowAnalysis.getFlowBefore(unit).contains(base))
-                                {
+                                if (!intentFlowAnalysis.getFlowBefore(unit).contains(base)) {
                                     continue;
                                 }
                                 try {
@@ -123,7 +122,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                                                 Value op = castExpr.getOp();
                                                 if (op instanceof Local) {
                                                     for (Unit opDefUnit : defs.getDefsOfAt((Local) op, defStmtDefIntentLocal)) {
-                                                        MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("cast******"+opDefUnit);
+                                                        MyLogger.getOverallLogger(IntentConditionTransformPathInsensitive.class).info("cast******" + opDefUnit);
                                                     }
                                                 }
                                             }
@@ -184,7 +183,6 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                 if (unit instanceof JIfStmt) {//数据流分析，判断intent值是否到达Ifstmt
 
 
-
                     IfStmt ifStmt = (IfStmt) unit;
 
                     ConditionExpr condition = (ConditionExpr) ifStmt.getCondition();
@@ -192,7 +190,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
                     Value op2 = condition.getOp2();
                     try {
-                        allIfUnitFile.write(ifStmt+"&&&&&&"+op1.getType().toString()+"&&&&&&"+op2.getType().toString()+"\n");
+                        allIfUnitFile.write(ifStmt + "&&&&&&" + op1.getType().toString() + "&&&&&&" + op2.getType().toString() + "\n");
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -204,7 +202,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                             for (Unit defCon1Unit : defs.getDefsOfAt((Local) op1, ifStmt)) {
                                 if (defCon1Unit instanceof DefinitionStmt) {
                                     try {
-                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt +"&&&&&&&&&"+ op1.getType().toString()+"\n");
+                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt + "&&&&&&&&&" + op1.getType().toString() + "\n");
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -218,7 +216,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
                             for (Unit defCon1Unit : defs.getDefsOfAt((Local) op2, ifStmt)) {
                                 if (defCon1Unit instanceof DefinitionStmt) {
                                     try {
-                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt +"&&&&&&&&&"+ op2.getType().toString()+"\n");
+                                        ifUnitFile.write(defCon1Unit + "###########" + ifStmt + "&&&&&&&&&" + op2.getType().toString() + "\n");
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -252,23 +250,25 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
 
         try {
-            intentDefineUnitFile = new BufferedWriter(new FileWriter("intentDefUnit.txt"));
+            intentDefineUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnit.txt"));
 
-            intentDefineUnitFileError11111111 = new BufferedWriter(new FileWriter("intentDefUnitError1111111.txt"));
-            intentDefineUnitFileError22222222 = new BufferedWriter(new FileWriter("intentDefUnitError2222222.txt"));
+            intentDefineUnitFileError11111111 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError1111111.txt"));
+            intentDefineUnitFileError22222222 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError2222222.txt"));
 
-            intentUseUnitFile=new BufferedWriter(new FileWriter("intentUseUnit.txt"));
+            intentUseUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentUseUnit.txt"));
 
-            ifUnitFile = new BufferedWriter(new FileWriter("ifStmtDefAboutIntent.txt"));
+            ifUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "ifStmtDefAboutIntent.txt"));
 
-            allIfUnitFile=new BufferedWriter(new FileWriter("allIfUnitFile.txt"));
+            allIfUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "allIfUnitFile.txt"));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        String appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
+        //String appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
+
+        String appDir=Config.wandoijiaAPP;
         //String appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/src/com/popoaichuiniu/intentGen/15B08211CDC4FD079F3B1297CD279347958C7F53FEE51EC204B217FE01D0472F_signed_zipalign.apk";
-       // String appDir=Config.defaultAppPath;
+        // String appDir=Config.defaultAppPath;
         File appDirFile = new File(appDir);
 
 
@@ -279,7 +279,7 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
             try {
 
-                BufferedReader hasAnalysisAPPBufferedReader = new BufferedReader(new FileReader("hasSatisticIfDefIntentDefAPP.txt"));
+                BufferedReader hasAnalysisAPPBufferedReader = new BufferedReader(new FileReader("AnalysisAPKIntent/intentConditionStatistics/" + "hasSatisticIfDefIntentDefAPP.txt"));
                 hasAnalysisAPP = new ArrayList<>();
                 String line = null;
                 while ((line = hasAnalysisAPPBufferedReader.readLine()) != null) {
@@ -298,12 +298,12 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
             BufferedWriter hasAnalysisAPPBufferedWriter = null;
             try {
-                hasAnalysisAPPBufferedWriter = new BufferedWriter(new FileWriter("hasSatisticIfDefIntentDefAPP.txt", true));
+                hasAnalysisAPPBufferedWriter = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "hasSatisticIfDefIntentDefAPP.txt", true));
             } catch (IOException e) {
                 e.printStackTrace();
             }
             for (File file : appDirFile.listFiles()) {
-                if (file.getName().endsWith("_signed_zipalign.apk")) {
+                if (file.getName().endsWith(".apk")) {//"_signed_zipalign.apk"
 
                     if (hasAnalysisAPP.contains(file.getAbsolutePath())) {
                         continue;

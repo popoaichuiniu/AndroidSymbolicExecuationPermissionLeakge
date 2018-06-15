@@ -116,8 +116,6 @@ public class MyCallGraph extends CallGraph {
         validateCallGraph(targetSootMethod);
 
 
-
-
         analyseEverySootMethodToGetMyUnitGraph(targetSootMethod, intentConditionTransformSymbolicExcutation);
 
 
@@ -134,17 +132,14 @@ public class MyCallGraph extends CallGraph {
     }
 
     private void validateTargetUnitInSootMethod(Map<SootMethod, Set<MyPairUnitToEdge>> map) {
-        for (Map.Entry<SootMethod,Set<MyPairUnitToEdge>> entry: map.entrySet()) {
+        for (Map.Entry<SootMethod, Set<MyPairUnitToEdge>> entry : map.entrySet()) {
 
 
-            SootMethod sootMethod=entry.getKey();
+            SootMethod sootMethod = entry.getKey();
 
-            for(MyPairUnitToEdge myPairUnitToEdge:entry.getValue())
-            {
-                if(sootMethod!=targetSootMethod)
-                {
-                    if(myPairUnitToEdge.outEdge==null)
-                    {
+            for (MyPairUnitToEdge myPairUnitToEdge : entry.getValue()) {
+                if (sootMethod != targetSootMethod) {
+                    if (myPairUnitToEdge.outEdge == null) {
                         System.out.println(sootMethod);
                         System.out.println(myPairUnitToEdge.srcUnit);
                         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("");
@@ -203,9 +198,11 @@ public class MyCallGraph extends CallGraph {
             UnitGraph ug = new BriefUnitGraph(oneSootMethod.getActiveBody());
 
 
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("开始数据流分析" + oneSootMethod.getBytecodeSignature());
             IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(ug);
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("数据流分析结束！");
 
-            SimpleLocalDefs defs=new SimpleLocalDefs(ug);
+            SimpleLocalDefs defs = new SimpleLocalDefs(ug);
 
             Set<MyPairUnitToEdge> oneMyPairUnitToEdgeSet = oneEntry.getValue();
 
@@ -218,33 +215,28 @@ public class MyCallGraph extends CallGraph {
                 }
 
 
-                boolean hasInfo=false;
+                boolean hasInfo = false;
                 Map<Unit, IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo> map = intentConditionTransformSymbolicExcutation.allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod);
                 if (map != null) {
                     IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo targetUnitInMethodInfo = map.get(onePair.srcUnit);
                     if (targetUnitInMethodInfo != null) {
-                       hasInfo=true;
+                        hasInfo = true;
                     }
                 }
 
                 if (!hasInfo) {
-                    boolean flag=intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis,defs,ug);
-                    if(!flag)
-                    {
+                    boolean flag = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis, defs, ug);
+                    if (!flag) {
                         throw new RuntimeException();///-----------------不用这么猛烈
                     }
                 }
 
                 //这个unit路径能产生Intent条件吗？产生的话，就不删除。
-                for(IntentConditionTransformSymbolicExcutation.UnitPath unitPath:intentConditionTransformSymbolicExcutation.allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod).get(onePair.srcUnit).unitPaths)
-                {
-                    if(judgeUnitPathHasCondition(unitPath.intentSoln))
-                    {
-                        flagNeedToRemove=false;
+                for (IntentConditionTransformSymbolicExcutation.UnitPath unitPath : intentConditionTransformSymbolicExcutation.allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod).get(onePair.srcUnit).unitPaths) {
+                    if (judgeUnitPathHasCondition(unitPath.intentSoln)) {
+                        flagNeedToRemove = false;
                     }
                 }
-
-
 
 
             }
@@ -258,10 +250,10 @@ public class MyCallGraph extends CallGraph {
 
 
         }
-        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size()+" "+new File(intentConditionTransformSymbolicExcutation.appPath).getName());
+        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size() + " " + new File(intentConditionTransformSymbolicExcutation.appPath).getName());
 
         try {
-            bufferedWriterRepeatEdge.write("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size() +" "+new File(intentConditionTransformSymbolicExcutation.appPath).getName() +"\n");
+            bufferedWriterRepeatEdge.write("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size() +"剩下："+(this.allMethods.size()-sootMethodsNeedToRemove.size()) +"#" + new File(intentConditionTransformSymbolicExcutation.appPath).getName() + "\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -274,26 +266,21 @@ public class MyCallGraph extends CallGraph {
 
     private boolean judgeUnitPathHasCondition(IntentConditionTransformSymbolicExcutation.IntentSoln intentSoln) {
 
-        if(!intentSoln.isFeasible)
-        {
-            return  false;
+        if (!intentSoln.isFeasible) {
+            return false;
 
         }
-        Intent intent=intentSoln.intent;
-        if(intent==null)
-        {
+        Intent intent = intentSoln.intent;
+        if (intent == null) {
             return false;
         }
-        if((intent.action!=null)&&(!intent.action.trim().equals("")))
-        {
+        if ((intent.action != null) && (!intent.action.trim().equals(""))) {
             return true;
         }
-        if(intent.extras!=null&&intent.extras.size()!=0)
-        {
+        if (intent.extras != null && intent.extras.size() != 0) {
             return true;
         }
-        if(intent.categories!=null&&intent.categories.size()!=0)
-        {
+        if (intent.categories != null && intent.categories.size() != 0) {
             return true;
         }
 
@@ -421,7 +408,7 @@ public class MyCallGraph extends CallGraph {
         for (Map.Entry<SootMethod, Set<MyPairUnitToEdge>> entry : targetUnitInSootMethod.entrySet()) {
             unitRemainInSootMethodMap.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
-       // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
+        // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
         deleteSootMethod(allSootMethodsAllUnitsTargetUnitInMethodInfo);
     }
 
@@ -696,7 +683,7 @@ public class MyCallGraph extends CallGraph {
             }
 
         }
-       // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
+        // validateTargetUnitInSootMethod(unitRemainInSootMethodMap);
     }
 
     @Override
@@ -771,8 +758,7 @@ public class MyCallGraph extends CallGraph {
     }
 
     private boolean isEdgeRemain(SootMethod sootMethod, Edge edge) {
-        if(sootMethod==targetSootMethod)
-        {
+        if (sootMethod == targetSootMethod) {
             return false;
         }
         boolean flagEdgeIsRemain = false;
