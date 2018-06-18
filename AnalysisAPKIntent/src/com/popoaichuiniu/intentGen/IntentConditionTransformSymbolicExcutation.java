@@ -41,7 +41,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private boolean pathLimitEnabled = true;
 
 
-
     private int enterBranchLimit = 20;//
 
     private boolean hasReachBranchLimit = false;
@@ -171,7 +170,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         } catch (RuntimeException e) {
             WriteFile writeFileAppException = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "appException.txt", true);
-            writeFileAppException.writeStr(appPath + "####" + "RunTimeException" + e.getMessage() + "\n");
+            writeFileAppException.writeStr(appPath + "####" + "RunTimeException" + "@@@" + e.getMessage() + "%%%" + e.getStackTrace() + "\n");
             writeFileAppException.close();
 
 
@@ -444,7 +443,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //
 
 
-
         List<List<Unit>> finalPathsReduced = new ArrayList<>();
 
         bodyMap = new HashMap<JimpleBody, Body>();
@@ -465,8 +463,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         hasReachBranchLimit = false;
 
-        int branchCount=0;
-        getAllPathInMethod(myPairUnitToEdge.srcUnit, null, myUnitGraph, finalPathsReduced, new ArrayList<Unit>(), new HashSet<UnitEdge>(),branchCount);
+        int branchCount = 0;
+        getAllPathInMethod(myPairUnitToEdge.srcUnit, null, myUnitGraph, finalPathsReduced, new ArrayList<Unit>(), new HashSet<UnitEdge>(), branchCount);
 
         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("unitgraph！寻找路径完毕");
         if (hasReachBranchLimit) {
@@ -1334,11 +1332,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 Unit succ = currPathList.get(indexOfUnit - 1);
 
                 Set<String> newExprs = handleIfStmt(ifStmt, path, sootMethod, defs, currDecls, succ);
-                if(newExprs!=null)
-                {
+                if (newExprs != null) {
                     currPathCond.addAll(newExprs);
                 }
-
 
 
             }
@@ -3315,7 +3311,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
-    private void getAllPathInMethod(Unit unit, UnitEdge unitEdge, UnitGraph ug, List<List<Unit>> finalPaths, List<Unit> curPath, Set<UnitEdge> visited,int branchCount) {
+    private void getAllPathInMethod(Unit unit, UnitEdge unitEdge, UnitGraph ug, List<List<Unit>> finalPaths, List<Unit> curPath, Set<UnitEdge> visited, int branchCount) {
 
 
         if (branchCount >= enterBranchLimit) {
@@ -3337,16 +3333,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             finalPaths.add(curPathCopy);
 
         } else {
+
+            if (ug.getPredsOf(unit).size() >= 2) {
+                branchCount++;
+            }
             for (Unit parentUnit : ug.getPredsOf(unit)) {
                 UnitEdge unitEdgeNew = new UnitEdge(unit, parentUnit);
 
                 if (!visitedCopy.contains(unitEdgeNew)) {//这条边是不是已经走过了
 
-                    if(ug.getPredsOf(unit).size()>=2)
-                    {
-                        branchCount++;
-                    }
-                    getAllPathInMethod(parentUnit, unitEdgeNew, ug, finalPaths, curPathCopy, visitedCopy,branchCount);
+
+                    getAllPathInMethod(parentUnit, unitEdgeNew, ug, finalPaths, curPathCopy, visitedCopy, branchCount);
 
                 }
 

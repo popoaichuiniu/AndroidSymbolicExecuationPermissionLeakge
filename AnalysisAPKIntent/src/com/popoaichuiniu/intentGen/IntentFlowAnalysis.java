@@ -1,6 +1,6 @@
 package com.popoaichuiniu.intentGen;
 
-import soot.Local;
+import com.popoaichuiniu.util.WriteFile;
 import soot.Unit;
 import soot.Value;
 import soot.ValueBox;
@@ -17,17 +17,27 @@ import java.util.*;
 public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>> {
 
 
-    private Map<Value, Unit> valuMapDef = null;
-
-    private Set<Unit> visited = null;
 
 
+    private Set<Unit> visited = new HashSet<>();
+
+    private Set<Value> intentSetFromGetIntent =new HashSet<>();
+    private Set<Value> intentSetFromParameter =new HashSet<>();
+    private Set<Value> intentAttr=new HashSet<>();
+
+    private WriteFile writeFileIntentAttr=new WriteFile("AnalysisAPKIntent/intentPass/"+"intentAttr.txt",true);
+    private WriteFile writeFileIntentGetIntent=new WriteFile("AnalysisAPKIntent/intentPass/"+"intentGetIntent.txt",true);
+    private WriteFile writeFileIntentFromParameter=new WriteFile("AnalysisAPKIntent/intentPass/"+"intentFromParameter.txt",true);
     public IntentFlowAnalysis(DirectedGraph<Unit> graph) {
 
         super(graph);
-        valuMapDef = new HashMap<>();
-        visited = new HashSet<>();
+
         doAnalysis();
+        writeFileIntentAttr.close();
+        writeFileIntentGetIntent.close();
+        writeFileIntentFromParameter.close();
+
+
     }
     //终止是不再变化？
 
@@ -59,7 +69,10 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 
                     out.add(definitionStmt.getLeftOp());
 
-                    //valuMapDef.put(definitionStmt.getRightOp(),definitionStmt);
+                    intentSetFromParameter.add(definitionStmt.getLeftOp());
+                    intentSetFromParameter.add(definitionStmt.getRightOp());
+
+
 
 
                 } else if (definitionStmt.getRightOp() instanceof JVirtualInvokeExpr) {
@@ -67,6 +80,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                     if (jVirtualInvokeExpr.getMethod().getName().equals("getIntent")) {//intent从getIntent方法中来
 
                         out.add(definitionStmt.getLeftOp());
+                        intentSetFromGetIntent.add(definitionStmt.getLeftOp());
 
 
                     }
@@ -87,6 +101,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                         if (in.contains(invokeExpr.getBase()))//intent from in
                         {
                             out.add(definitionStmt.getLeftOp());
+                            intentAttr.add(definitionStmt.getLeftOp());
                         }
 
 
@@ -135,6 +150,54 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 //
 //            }
 
+            if(d instanceof DefinitionStmt)//直接赋值, x1=x2
+            {
+                DefinitionStmt temp= (DefinitionStmt) d;
+                if(intentSetFromGetIntent.contains(temp.getRightOp()))
+                {
+                    intentSetFromGetIntent.add(temp.getLeftOp());
+                }
+
+                if(intentSetFromParameter.contains(temp.getRightOp()))
+                {
+                    intentSetFromParameter.add(temp.getLeftOp());
+                }
+                if(intentAttr.contains(temp.getRightOp()))
+                {
+                    intentAttr.add(temp.getLeftOp());
+                }
+            }
+
+            Stmt stmt= (Stmt) d;
+            if(stmt.containsInvokeExpr())
+            {
+                InvokeExpr invokeExpr=stmt.getInvokeExpr();
+                if((!invokeExpr.getMethod().getBytecodeSignature().contains("<android."))&&(!invokeExpr.getMethod().getBytecodeSignature().contains("<java.")))
+                {
+                    for(Value arg:invokeExpr.getArgs())
+                    {
+
+                        if(intentSetFromGetIntent.contains(arg))
+                        {
+                            writeFileIntentGetIntent.writeStr(d+"\n");
+                        }
+                        if(intentSetFromParameter.contains(arg))
+                        {
+                            writeFileIntentFromParameter.writeStr(d+"\n");
+                        }
+                        if(intentAttr.contains(arg))
+                        {
+                            writeFileIntentAttr.writeStr(d+"\n");
+                        }
+
+                    }
+                }
+
+            }
+
+
+
+
             List<ValueBox> usedUnitBox=definitionStmt.getRightOp().getUseBoxes();
 
 
@@ -144,6 +207,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                 if(in.contains(value))
                 {
                     out.add(definitionStmt.getLeftOp());
+
                     break;
                 }
             }
@@ -191,6 +255,11 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                 //this unit is not about intent,so kill
 
                 out.remove(definitionStmt.getLeftOp());
+
+                intentSetFromGetIntent.remove(definitionStmt.getLeftOp());
+                intentSetFromParameter.remove(definitionStmt. getLeftOp());
+                intentAttr.remove(definitionStmt.getLeftOp());
+
             }
 
 
