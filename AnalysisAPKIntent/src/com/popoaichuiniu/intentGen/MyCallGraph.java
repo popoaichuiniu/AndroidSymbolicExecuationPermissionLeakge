@@ -142,8 +142,8 @@ public class MyCallGraph extends CallGraph {
                     if (myPairUnitToEdge.outEdge == null) {
                         System.out.println(sootMethod);
                         System.out.println(myPairUnitToEdge.srcUnit);
-                        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("");
-                        throw new RuntimeException();
+                        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("非目标方法myPairUnitToEdge.outEdge == null");
+                        throw new RuntimeException("非目标方法myPairUnitToEdge.outEdge == null");
                     }
                 }
             }
@@ -227,7 +227,7 @@ public class MyCallGraph extends CallGraph {
                 if (!hasInfo) {
                     boolean flag = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis, defs, ug);
                     if (!flag) {
-                        throw new RuntimeException();///-----------------不用这么猛烈
+                        throw new RuntimeException("达到unitgraph限制");///-----------------不用这么猛烈
                     }
                 }
 
@@ -250,6 +250,7 @@ public class MyCallGraph extends CallGraph {
 
 
         }
+
         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("call grah节点数:" + this.allMethods.size() + " 需要删除的节点数:" + sootMethodsNeedToRemove.size() + " " + new File(intentConditionTransformSymbolicExcutation.appPath).getName());
 
         try {
@@ -259,12 +260,11 @@ public class MyCallGraph extends CallGraph {
         }
 
 
-        //getIdenticalEdgeInSootMethod(targetSootMethod, intentConditionTransformSymbolicExcutation);
+        //getIdenticalEdgeInSootMethod(targetSootMethod, intentConditionTransformSymbolicExcutation);//找到方法中相同约束的调用边
 
 
     }
-
-    private boolean judgeUnitPathHasCondition(IntentConditionTransformSymbolicExcutation.IntentSoln intentSoln) {
+    public boolean judgeUnitPathHasCondition(IntentConditionTransformSymbolicExcutation.IntentSoln intentSoln) {
 
         if (!intentSoln.isFeasible) {
             return false;
@@ -287,6 +287,8 @@ public class MyCallGraph extends CallGraph {
         return false;
 
     }
+
+
 
     private void getIdenticalEdgeInSootMethod(SootMethod targetSootMethod, IntentConditionTransformSymbolicExcutation intentConditionTransformSymbolicExcutation) {
         for (Map.Entry<SootMethod, Set<MyPairUnitToEdge>> oneEntry : this.targetUnitInSootMethod.entrySet()) {
@@ -391,14 +393,14 @@ public class MyCallGraph extends CallGraph {
             if (inEdges.size() == 0 && (!sootMethod.getBytecodeSignature().equals("<dummyMainClass: dummyMainMethod([Ljava/lang/String;)V>"))) {
 
                 MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error(sootMethod.getBytecodeSignature() + "xxxxxxxx入度为0");
-                throw new RuntimeException();
+                throw new RuntimeException("validateCallGraph非主函数入度为0");
             }
             Set<Edge> outEdges = outEdgesOfThisMethod.get(sootMethod);
 
             if (outEdges.size() == 0 && sootMethod != targetSootMethod) {
                 MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error(sootMethod.getBytecodeSignature() + "xxxxxxxx出度为0");
 
-                throw new RuntimeException();
+                throw new RuntimeException("validateCallGraph非targetSootMethod出度为0");
             }
         }
     }
@@ -509,7 +511,7 @@ public class MyCallGraph extends CallGraph {
                 if (edge == null) {
 
                     MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("edge == null");
-                    throw new RuntimeException();
+                    throw new RuntimeException("deleteSootMethod edge == null");
                 }
                 deleteRepeatEdge(sootMethod, edge, allSootMethodsAllUnitsTargetUnitInMethodInfo);
             }
@@ -583,8 +585,8 @@ public class MyCallGraph extends CallGraph {
             for (MyPairUnitToEdge myPairUnitToEdge : targetUnitInSootMethod.get(sootMethod)) {
                 Edge edge = myPairUnitToEdge.outEdge;
                 if (edge == null) {
-                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("");
-                    throw new RuntimeException();
+                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("edge == null");
+                    throw new RuntimeException("deleteSootMethod edge == null");
                 }
                 deleteRepeatEdge(sootMethod, edge, allSootMethodsAllUnitsTargetUnitInMethodInfo);
             }
@@ -732,8 +734,8 @@ public class MyCallGraph extends CallGraph {
                 for (IntentConditionTransformSymbolicExcutation.TargetUnitInMethodInfo targetUnitInMethodInfo : list) {
                     Edge edgeTemp = targetUnitInMethodInfo.edge;
                     if (edgeTemp == null) {
-                        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("");
-                        throw new RuntimeException();
+                        MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("edgeTemp == null");
+                        throw new RuntimeException("edgeTemp == null");
                     }
                     if ((!edgeTemp.equals(edge)) && edge.tgt() == edgeTemp.tgt())//这两条边有相同的tgt，但是 不是相同的
                     {
@@ -752,7 +754,7 @@ public class MyCallGraph extends CallGraph {
         }
         if (count > 1) {
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("");
-            throw new RuntimeException();
+            throw new RuntimeException("edge 出现在多个集团中");
         }
 
     }

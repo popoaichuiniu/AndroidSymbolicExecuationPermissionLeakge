@@ -286,6 +286,25 @@ public class Util {
         return null;
     }
 
+    public static boolean judgeIntentIsUseful(Intent intent) {
+
+
+        if (intent == null) {
+            return false;
+        }
+        if ((intent.action != null) && (!intent.action.trim().equals(""))) {
+            return true;
+        }
+        if (intent.extras != null && intent.extras.size() != 0) {
+            return true;
+        }
+        if (intent.categories != null && intent.categories.size() != 0) {
+            return true;
+        }
+
+        return false;
+
+    }
 
     private static void findUnRelativeNode(Unit targetUnit, SootMethod sootMethod, Set<Unit> allUnitUnRelativeIntentAndTargetUnit, IntentFlowAnalysis intentFlowAnalysis, UnitGraph ug, SimpleLocalDefs defs) {
 
