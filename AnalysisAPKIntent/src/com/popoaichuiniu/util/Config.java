@@ -15,7 +15,7 @@ public class Config {
 
     public  static  String defaultAppPath ="/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/app-debug.apk";
 
-    public static String fDroidAPPDir="";
+    public static String fDroidAPPDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
 
     public static String wandoijiaAPP="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/apks_wandoujia/apks/all_app";
 

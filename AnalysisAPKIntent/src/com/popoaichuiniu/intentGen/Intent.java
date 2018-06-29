@@ -4,6 +4,7 @@ import org.javatuples.Quartet;
 import org.javatuples.Triplet;
 
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 public class Intent {
@@ -77,5 +78,31 @@ public class Intent {
                 ", targetComponent='" + targetComponent + '\'' +
                 ", categories=" + categories +
                 '}';
+    }
+}
+class IntentExtra {
+    String key;
+    String type;
+    String value;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IntentExtra that = (IntentExtra) o;
+        return Objects.equals(key, that.key) &&
+                Objects.equals(type, that.type);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(key, type);
+    }
+
+    public IntentExtra(String key, String type, String value) {
+        this.key = key;
+        this.type = type;
+        this.value = value;
     }
 }

@@ -45,6 +45,8 @@ public class MyCallGraph extends CallGraph {
 
     Unit targetUnit = null;
 
+    SootMethod dummyMainMethod=null;
+
 
     static {
 
@@ -100,6 +102,10 @@ public class MyCallGraph extends CallGraph {
 
             inEdgesOfThisMethod.put(sootMethod, new HashSet<>());
             outEdgesOfThisMethod.put(sootMethod, new HashSet<>());
+            if (sootMethod.getBytecodeSignature().equals("<dummyMainClass: dummyMainMethod([Ljava/lang/String;)V>"))
+            {
+                dummyMainMethod=sootMethod;
+            }
 
 
         }
@@ -195,11 +201,23 @@ public class MyCallGraph extends CallGraph {
             SootMethod oneSootMethod = oneEntry.getKey();
 
 
-            UnitGraph ug = new BriefUnitGraph(oneSootMethod.getActiveBody());
+            UnitGraph ug=intentConditionTransformSymbolicExcutation.sootMethodUnitGraphMap.get(oneSootMethod);
+            if(ug==null)
+            {
+                ug = new BriefUnitGraph(oneSootMethod.getActiveBody());
+                intentConditionTransformSymbolicExcutation.sootMethodUnitGraphMap.put(oneSootMethod,ug);
+
+            }
 
 
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("开始数据流分析" + oneSootMethod.getBytecodeSignature());
-            IntentFlowAnalysis intentFlowAnalysis = new IntentFlowAnalysis(ug);
+            IntentFlowAnalysis intentFlowAnalysis = intentConditionTransformSymbolicExcutation.sootMethodIntentFlowAnalysisMap.get(oneSootMethod);
+            if(intentFlowAnalysis==null)
+            {
+                intentFlowAnalysis = new IntentFlowAnalysis(ug);
+                intentConditionTransformSymbolicExcutation.sootMethodIntentFlowAnalysisMap.put(oneSootMethod,intentFlowAnalysis);
+            }
+
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("数据流分析结束！");
 
             SimpleLocalDefs defs = new SimpleLocalDefs(ug);
@@ -227,7 +245,7 @@ public class MyCallGraph extends CallGraph {
                 if (!hasInfo) {
                     boolean flag = intentConditionTransformSymbolicExcutation.doAnalysisOnUnit(onePair, oneSootMethod, intentFlowAnalysis, defs, ug);
                     if (!flag) {
-                        throw new RuntimeException("达到unitgraph限制");///-----------------不用这么猛烈
+                        throw new RuntimeException("达到unitgraph限制");
                     }
                 }
 

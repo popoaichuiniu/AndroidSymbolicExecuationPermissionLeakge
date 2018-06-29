@@ -9,6 +9,7 @@ import org.javatuples.Pair;
 import org.javatuples.Quartet;
 
 import org.javatuples.Triplet;
+
 import soot.*;
 import soot.jimple.*;
 import soot.jimple.internal.AbstractJimpleIntBinopExpr;
@@ -18,6 +19,7 @@ import soot.jimple.internal.JimpleLocal;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.jimple.toolkits.ide.icfg.JimpleBasedInterproceduralCFG;
+import soot.jimple.toolkits.pointer.Union;
 import soot.tagkit.BytecodeOffsetTag;
 import soot.tagkit.Tag;
 import soot.toolkits.graph.BriefUnitGraph;
@@ -35,19 +37,19 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     private static boolean exeModelTest = false;
 
-    public String appPath = null;
-
-    Set<Triplet<Integer, String, String>> targets = null;
     private boolean pathLimitEnabled = true;
-
 
     private int enterBranchLimit = 20;//
 
     private boolean hasReachBranchLimit = false;
 
 
-    private static BufferedWriter ifReducedWriter = null;
+    public String appPath = null;
 
+    Set<Triplet<Integer, String, String>> targets = null;
+
+
+    private static BufferedWriter ifReducedWriter = null;
 
     private static BufferedWriter bufferWriterEAToProtectPath = null;
 
@@ -60,12 +62,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private HashSet<Intent> allIntentConditionOfOneApp = null;
 
     private MyUnitGraph myUnitGraphReduced = null;
-
-
-    /**
-     * key: a Value corresponding to an Intent extra, value: the string representing the key of the extra data
-     */
-    private Map<Value, String> valueKeyMap = new LinkedHashMap<Value, String>();
 
 
     /**
@@ -99,6 +95,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
     Map<List<Unit>, Intent> pathIntents = new LinkedHashMap<List<Unit>, Intent>();
+
+
+    public Map<SootMethod, IntentFlowAnalysis> sootMethodIntentFlowAnalysisMap = new HashMap<>();
+
+    public Map<SootMethod, UnitGraph> sootMethodUnitGraphMap = new HashMap<>();
 
 
     public IntentConditionTransformSymbolicExcutation(String apkFilePath) {
@@ -147,6 +148,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             return;
         }
 
+        initialWork();
+
         AndroidCallGraphHelper androidCallGraphHelper = new AndroidCallGraphHelper(appPath, Config.androidJar);
         AndroidInfoHelper androidInfoHelper = new AndroidInfoHelper(appPath);
         List<SootMethod> ea_entryPoints = Util.getEA_EntryPoints(androidCallGraphHelper, androidInfoHelper);
@@ -169,8 +172,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             }
 
         } catch (RuntimeException e) {
+            e.printStackTrace();
             WriteFile writeFileAppException = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "appException.txt", true);
-            writeFileAppException.writeStr(appPath + "####" + "RunTimeException" + "@@@" + e.getMessage() + "%%%" + e.getStackTrace() + "\n");
+            writeFileAppException.writeStr(appPath + "####" + "RunTimeException" + "@@@" + e.getMessage() + "%%%" + ExceptionUtil.getStackTrace(e) + "\n\n");
             writeFileAppException.close();
 
 
@@ -179,14 +183,21 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     }
 
+    private void initialWork() {
+
+        File intent_file_utli = new File("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt");
+        if (intent_file_utli.exists()) {
+            intent_file_utli.delete();
+        }
+    }
+
 
     private void analysisSootMethod(SootMethod sootMethod, CallGraph cg, List<SootMethod> ea_entryPoints, List<SootMethod> roMethods) {
 
 
-        if (exeModelTest) {//----------------------------------------测试
+        if (exeModelTest) {//测试
 
-            if (!sootMethod.getBytecodeSignature().contains("TestUnUsedIFBlockAlgorithm"))//-------------------------------
-            {
+            if (!(sootMethod.getBytecodeSignature().contains("TestUnUsedIFBlockAlgorithm"))) {
                 return;
             }
 
@@ -271,7 +282,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             }
 
 
-            if (exeModelTest) {//----------------------------------------测试
+            if (exeModelTest) {//测试
                 for (Unit unit : units) {
                     if (unit.toString().contains("sendTextMessage")) {
 
@@ -316,11 +327,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         writeFileCallGraphSize.flush();
         //myCallGraph.exportGexf(new File(appPath).getName());
 
-//        writeFileCallGraphSize.writeStr("开始求callgraph所有路径"+ " " + new File(appPath).getName() + "\n");
-//        writeFileCallGraphSize.flush();
-//        myCallGraphReducedAndAllPathGet(sootMethod, unit, myCallGraph);
-//        writeFileCallGraphSize.writeStr("callgraph所有路径求解完毕！" + " " + new File(appPath).getName() + "\n");
-//        writeFileCallGraphSize.flush();
+        writeFileCallGraphSize.writeStr("开始求callgraph所有路径" + " " + new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.flush();
+        myCallGraphReducedAndAllPathGet(sootMethod, unit, myCallGraph);
+        writeFileCallGraphSize.writeStr("callgraph所有路径求解完毕！" + " " + new File(appPath).getName() + "\n");
+        writeFileCallGraphSize.flush();
 
 
     }
@@ -333,7 +344,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //        writeFileCallGraphSize.writeStr("myCallGraph_R:" + myCallGraph.allMethods.size() + " " + myCallGraph.allEdges.size() + " " + new File(appPath).getName() + "\n");
 //        writeFileCallGraphSize.flush();
 
-        Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodSetIntentCondition = new HashMap<>();//android.content.intent的没有解决
+        Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodSetIntentCondition = new HashMap<>();
 
         for (Map.Entry<SootMethod, Set<MyCallGraph.MyPairUnitToEdge>> entry : myCallGraph.targetUnitInSootMethod.entrySet()) {
             SootMethod oneSootMethod = entry.getKey();
@@ -343,12 +354,37 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             HashMap<Unit, Set<Intent>> hashMap = new HashMap<>();
             for (MyCallGraph.MyPairUnitToEdge myPairUnitToEdge : myPairUnitToEdgeSet) {
                 HashSet<Intent> hashSet = new HashSet<>();
-                for (IntentConditionTransformSymbolicExcutation.UnitPath unitPath : allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod).get(myPairUnitToEdge.srcUnit).unitPaths) {
-                    if (myCallGraph.judgeUnitPathHasCondition(unitPath.intentSoln)) {
+                Map<Unit,TargetUnitInMethodInfo> sootMethodInfo=allSootMethodsAllUnitsTargetUnitInMethodInfo.get(oneSootMethod);
+                if(sootMethodInfo==null)
+                {
+                    throw new RuntimeException("找不到"+oneSootMethod+"allSootMethodsAllUnitsTargetUnitInMethodInfo");
+                }
+
+                if(myPairUnitToEdge.srcUnit==null)
+                {
+                    throw new RuntimeException("找不到"+oneSootMethod+"中边的调用语句！");
+                }
+
+                TargetUnitInMethodInfo targetUnitInMethodInfo=sootMethodInfo.get(myPairUnitToEdge.srcUnit);
+                if(targetUnitInMethodInfo==null)
+                {
+                    throw new RuntimeException("找不到"+oneSootMethod+"中边的调用语句的targetUnitInMethodInfo！");
+                }
+
+                if(targetUnitInMethodInfo.unitPaths==null)
+                {
+                    throw new RuntimeException(oneSootMethod+"中到调用语句的路径为空");
+                }
+
+                for (IntentConditionTransformSymbolicExcutation.UnitPath unitPath : targetUnitInMethodInfo.unitPaths) {
+                    if (!unitPath.intentSoln.isFeasible) {//可行的路径的intent
 
                         hashSet.add(unitPath.intentSoln.intent);
 
                     }
+                }
+                if (hashSet.size() == 0) {//说明没有一条路径可行的
+
                 }
                 hashMap.put(myPairUnitToEdge.srcUnit, hashSet);
             }
@@ -358,16 +394,32 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         }
 
-        sootMethodsKnow = new HashSet<>();
-        Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths = new HashSet<>();
-        getCallPathSootMethod(sootMethod, unit, new ArrayList<Pair<SootMethod, Unit>>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths, sootMethodSetIntentCondition);
+        Map<SootMethod, Set<Intent>> sootMethodIntentConditionSummary = new HashMap<>();
+        Set<List<SootMethod>> sootMethodCallFinalPaths = new HashSet<>();
+        //正向路径
+        getCallPathSootMethod(myCallGraph.dummyMainMethod, new ArrayList<SootMethod>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths, sootMethodSetIntentCondition, sootMethodIntentConditionSummary);
 
-        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", false);
-        for (Intent intent : sootMethodSetIntentCondition.get(sootMethod).get(unit))
 
-        {
-            writeFile.writeStr(intent + "%%%" + unit + "\n");
+        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", true);
+        for (Iterator<Edge> edgeIterator = myCallGraph.edgesOutOf(myCallGraph.dummyMainMethod); edgeIterator.hasNext(); ) {
+
+            Edge outEdge = edgeIterator.next();
+
+            SootMethod sootMethodTgt = outEdge.tgt();
+
+            Set<Intent> intentSet = sootMethodIntentConditionSummary.get(sootMethodTgt);
+
+            if (intentSet != null) {
+                for (Intent intent : intentSet) {
+                    intent.targetComponent = sootMethodTgt.getDeclaringClass().getName();
+                    writeFile.writeStr(intent + "%%%" + unit + "$" + unit.getTag("BytecodeOffsetTag") + "\n");
+                }
+            }
+
+
         }
+        writeFile.writeStr("%%%%%%%%%%%%%%%%%%%%%%%%%" + "\n");
+
         writeFile.close();
 
 
@@ -618,54 +670,43 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
-    private Set<SootMethod> sootMethodsKnow = null;
 
-    private void getCallPathSootMethod(SootMethod sootMethod, Unit unit, List<Pair<SootMethod, Unit>> callSootMethodUnitPairPath, CallGraph cg, Edge edge, Set<Edge> edgeSet, Set<List<Pair<SootMethod, Unit>>> sootMethodCallFinalPaths, Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodIntentConditionMap) {
+    private Set<Intent> getCallPathSootMethod(SootMethod sootMethod, List<SootMethod> callSootMethodPath, MyCallGraph cg, Edge edge, Set<Edge> edgeSet, Set<List<SootMethod>> sootMethodCallFinalPaths, Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodUnitIntentConditionMap, Map<SootMethod, Set<Intent>> sootMethodIntentConditionSummary) {
 
+        List<SootMethod> callSootMethodPathCopy = new ArrayList<>(callSootMethodPath);
 
-        // MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("######" + sootMethod.getBytecodeSignature());
-//
-//        if(callSootMethodUnitPairPath.size()>=10)
-//        {
-//            return;
-//        }
-
-
-//        if (sootMethodCallFinalPaths.size() > 20) {
-//            return;
-//        }
-
-        if (!cg.edgesInto(sootMethod).hasNext()) {
-            if (sootMethod.getBytecodeSignature().equals("<dummyMainClass: dummyMainMethod([Ljava/lang/String;)V>")) {
-
-
-                sootMethodCallFinalPaths.add(callSootMethodUnitPairPath);
-
-                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("路径长度：" + callSootMethodUnitPairPath.size());
-
-                return;
-            } else {
-                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("非主函数入度为0");
-                throw new RuntimeException("非主函数入度为0");
-            }
-        }
-
-
-        List<Pair<SootMethod, Unit>> callSootMethodUnitPairPathCopy = new ArrayList<>(callSootMethodUnitPairPath);
-
-        callSootMethodUnitPairPathCopy.add(new Pair<SootMethod, Unit>(sootMethod, unit));
+        callSootMethodPathCopy.add(sootMethod);
 
         Set<Edge> edgeSetCopy = new HashSet<>(edgeSet);
 
         edgeSetCopy.add(edge);
 
-        Map<Unit, Set<Intent>> hashMapParentOfUnitToSetIntent = sootMethodIntentConditionMap.get(sootMethod);
 
-        for (Iterator<Edge> edgeIterator = cg.edgesInto(sootMethod); edgeIterator.hasNext(); ) {
-            Edge inEdge = edgeIterator.next();
+        if (!cg.edgesOutOf(sootMethod).hasNext()) {
+            if (sootMethod == cg.targetSootMethod) {
 
-            SootMethod sootMethodSrc = inEdge.src();
-            Unit srcUnit = inEdge.srcUnit();
+
+                sootMethodCallFinalPaths.add(callSootMethodPathCopy);
+
+                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("路径长度：" + callSootMethodPath.size());
+
+                return sootMethodUnitIntentConditionMap.get(cg.targetSootMethod).get(cg.targetUnit);
+            } else {
+                MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("非targetSootMethod出度为0");
+                throw new RuntimeException("非targetSootMethod出度为0");
+            }
+        }
+
+
+        Map<Unit, Set<Intent>> hashMapParentOfUnitToSetIntent = sootMethodUnitIntentConditionMap.get(sootMethod);
+
+        Set<Intent> hashSetParentSummary = new HashSet<>();
+
+        for (Iterator<Edge> edgeIterator = cg.edgesOutOf(sootMethod); edgeIterator.hasNext(); ) {
+            Edge outEdge = edgeIterator.next();
+
+            SootMethod sootMethodTgt = outEdge.tgt();
+            Unit srcUnit = outEdge.srcUnit();
             if (srcUnit == null) {
 
 
@@ -676,70 +717,43 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             Set<Intent> hashSetIntentParent = hashMapParentOfUnitToSetIntent.get(srcUnit);
 
-            Set<Intent> hashSetParentNew = new HashSet<>();
+
+            if (!edgeSetCopy.contains(outEdge)) {
+                Set<Intent> hashSetChildrenSummary = null;
+                if (!sootMethodIntentConditionSummary.containsKey(sootMethodTgt)) {
+                    hashSetChildrenSummary = getCallPathSootMethod(sootMethodTgt, callSootMethodPathCopy, cg, outEdge, edgeSetCopy, sootMethodCallFinalPaths, sootMethodUnitIntentConditionMap, sootMethodIntentConditionSummary);
+                } else {
+
+                    hashSetChildrenSummary = sootMethodIntentConditionSummary.get(sootMethodTgt);//取出sootMethodTgt到达targetSootMethod的所有intent条件
 
 
-            if (!edgeSetCopy.contains(inEdge) && (!sootMethodsKnow.contains(sootMethodSrc))) {
-                getCallPathSootMethod(sootMethodSrc, srcUnit, callSootMethodUnitPairPathCopy, cg, inEdge, edgeSetCopy, sootMethodCallFinalPaths, sootMethodIntentConditionMap);
-            } else {
-
-                Map<Unit, Set<Intent>> hashMapChildren = sootMethodIntentConditionMap.get(sootMethodSrc);
-                for (Map.Entry<Unit, Set<Intent>> entryChildren : hashMapChildren.entrySet()) {
-                    for (Intent intentChildren : entryChildren.getValue()) {
-                        for (Intent intentParent : hashSetIntentParent)
-
-                        {
-                            Intent newIntent = joinTwoIntent(intentParent, intentChildren);
-                            if (newIntent != null) {
-                                hashSetParentNew.add(newIntent);
-                            }
-
-                        }
-                    }
                 }
 
+                for (Intent intentChildren : hashSetChildrenSummary) {
+                    for (Intent intentParent : hashSetIntentParent)
 
+                    {
+                        Intent newIntent = joinTwoIntent(intentParent, intentChildren);//融合intent
+                        if (newIntent != null) {
+                            hashSetParentSummary.add(newIntent);
+                        }
+
+                    }
+                }
             }
 
-            hashMapParentOfUnitToSetIntent.put(srcUnit, hashSetParentNew);
-
 
         }
 
-        sootMethodIntentConditionMap.put(sootMethod, hashMapParentOfUnitToSetIntent);
-        sootMethodsKnow.add(sootMethod);
+        sootMethodIntentConditionSummary.put(sootMethod, hashSetParentSummary);
+
+        return hashSetParentSummary;
 
 
     }
 
-    class IntentExtra {
-        String key;
-        String type;
-        String value;
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IntentExtra that = (IntentExtra) o;
-            return Objects.equals(key, that.key) &&
-                    Objects.equals(type, that.type);
-        }
-
-        @Override
-        public int hashCode() {
-
-            return Objects.hash(key, type);
-        }
-
-        public IntentExtra(String key, String type, String value) {
-            this.key = key;
-            this.type = type;
-            this.value = value;
-        }
-    }
-
-    private Intent joinTwoIntent(Intent intentParent, Intent intentChildren) {
+    public static Intent joinTwoIntent(Intent intentParent, Intent intentChildren) {
         if (intentChildren == null && intentParent == null) {
             return null;
         }
@@ -748,44 +762,75 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             Intent intent = new Intent();
 
             if (intentChildren.action != null && intentParent.action != null) {
-                if (!intentChildren.action.trim().equals(intentParent.action.trim())) {
+                intent.action = jointTwoStringValue(intentChildren.action, intentParent.action);//两个action不冲突，必然会产生至少一个新的action
+
+                if (intent.action == null) {
                     return null;
                 }
-                intent.action = intentChildren.action;
+
             }
             if (intentChildren.action == null && intentParent.action == null) {
                 intent.action = null;
             }
-            if (intentChildren.action != null) {
+            if (intentChildren.action != null && intentParent.action == null) {
                 intent.action = intentChildren.action;
             }
-            if (intentParent.action != null) {
+            if (intentParent.action != null && intentChildren.action == null) {
                 intent.action = intentParent.action;
             }
 
-            if (!intentParent.targetComponent.trim().equals(intentChildren.targetComponent.trim())) {
-                return null;
-            }
-
-            intent.targetComponent = intentParent.targetComponent.trim();
-
-            HashSet hashSet = new HashSet();
+            HashSet<String> hashSet = new HashSet();
             hashSet.addAll(intentParent.categories);
             hashSet.addAll(intentChildren.categories);
             hashSet.remove(null);
+            for (String cate : hashSet) {
+                if (cate.startsWith("ZMS!")) {
+                    String removePrefixCate = cate.replaceAll("ZMS!", "");
+                    if (hashSet.contains(removePrefixCate)) {
+                        return null;
+                    }
+                }
+            }
             intent.categories = hashSet;
 
-            HashSet<IntentExtra> hashSetIntentExtra = new HashSet();
+
+            intent.extras.addAll(intentParent.extras);
+            intent.extras.addAll(intentChildren.extras);
+
+            HashSet<IntentExtra> hashSetIntentExtra = new HashSet();//存储最后的结果
+
             for (Quartet<String, String, String, String> oneExtra : intent.extras) {
                 if (oneExtra.getValue0().equals("IntentKey")) {
                     IntentExtra intentExtra = new IntentExtra(oneExtra.getValue2(), oneExtra.getValue1(), oneExtra.getValue3());
-                    if (hashSetIntentExtra.contains(intentExtra)) {
+                    if (hashSetIntentExtra.contains(intentExtra)) {// key和type相同则true
                         for (IntentExtra oneIntentExtra : hashSetIntentExtra) {
                             if (oneIntentExtra.equals(intentExtra)) {
-                                if (!intentExtra.value.trim().equals(oneIntentExtra.value.trim())) {
+
+                                String value = null;
+                                if (intentExtra.type.equals("java.lang.String")) {
+                                    value = jointTwoStringValue(intentExtra.value.trim(), oneIntentExtra.value.trim());
+                                } else if (intentExtra.type.equals("long") || intentExtra.type.equals("short") || intentExtra.type.equals("int") || intentExtra.type.equals("float") || intentExtra.type.equals("double") || intentExtra.type.equals("byte")) {
+                                    value = intentExtra.value + "##" + oneIntentExtra.value;
+                                }
+                                else//其他类型
+                                {
+                                    if(intentExtra.value.equals(oneIntentExtra.value))
+                                    {
+                                        value=intentExtra.value;
+                                    }
+                                }
+
+
+                                if (value == null)//存在两个值冲突
+                                {
                                     return null;
                                 }
+
+                                oneIntentExtra.value = value;
+
                                 break;
+
+
                             }
                         }
                     } else {
@@ -814,6 +859,99 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return null;
     }
 
+    private static String jointTwoStringValue(String str1, String str2) {
+
+        Set<String> str1SetOfChildren = getAllCondition(str1);
+        Set<String> str2SetOfParent = getAllCondition(str2);
+        String result = "";
+        boolean flag = false;
+        for (String actionOfChildren : str1SetOfChildren) {
+            for (String actionOfParent : str2SetOfParent) {
+                if(actionOfChildren.contains("!0!")&&(!actionOfParent.contains("!0!")))
+                {
+                    result = actionOfParent + "##" + result;
+                    continue;
+
+                }
+                if((!actionOfChildren.contains("!0!"))&&(actionOfParent.contains("!0!")))
+                {
+                    result = actionOfChildren + "##" + result;
+                    continue;
+
+                }
+                if((actionOfChildren.contains("!0!"))&&(actionOfParent.contains("!0!")))
+                {
+
+                    continue;
+
+                }
+                if (actionOfChildren.startsWith("ZMS!") || actionOfParent.startsWith("ZMS!")) {
+
+                    if (actionOfChildren.startsWith("ZMS!") && actionOfParent.startsWith("ZMS!")) {
+                        String removePrefixChildren = actionOfChildren.replaceAll("ZMS!", "");
+                        String removePrefixParent = actionOfParent.replaceAll("ZMS!", "");
+                        if (removePrefixChildren.equals(removePrefixParent)) {
+                            result = actionOfChildren + "##" + result;
+                            flag = true;
+                        } else {
+                            result = actionOfChildren + "##" + actionOfParent + "##" + result;
+                            flag = true;
+                        }
+                    } else if (actionOfChildren.startsWith("ZMS!") && (!actionOfParent.startsWith("ZMS!"))) {
+                        String removePrefixChildren = actionOfChildren.replaceAll("ZMS!", "");
+                        if (removePrefixChildren.equals(actionOfParent)) {
+                            continue;
+                        } else {
+                            result = actionOfChildren + "##" + actionOfParent + "##" + result;
+                            flag = true;
+                        }
+                    } else {
+                        String removePrefixParent = actionOfParent.replaceAll("ZMS!", "");
+                        if (removePrefixParent.equals(actionOfChildren)) {
+                            continue;
+                        } else {
+                            result = actionOfChildren + "##" + actionOfParent + "##" + result;
+                            flag = true;
+                        }
+                    }
+
+
+                } else if ((!str1.trim().equals(str2.trim()))) {//两个action不同
+                    continue;
+                } else //两个action相同
+                {
+                    result = str1 + "##" + result;
+                    flag = true;
+                }
+
+            }
+        }
+        if (!flag) {
+            return null;
+        }
+
+
+        result = result.substring(0, result.length() - 2);//去掉##
+
+
+        return result;
+    }
+
+    private static Set<String> getAllCondition(String str) {
+        HashSet<String> hashSet = new HashSet<>();
+        if (str.contains("##")) {
+            String[] conditionArray = str.split("##");
+            for (String conditionStr : conditionArray) {
+                hashSet.add(conditionStr);
+            }
+
+        } else {
+            hashSet.add(str);
+        }
+        return hashSet;
+
+    }
+
 
     protected Pair<Intent, Boolean> runSolvingPhase(SootMethod method, List<Unit> currPath, Set<String> interPathCond, Set<String> interDecls) {
 
@@ -833,12 +971,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             for (String c : interPathCond) {
                 content += c + "\n";
             }
-            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "ifeasiblePath.txt", true);
-            writeFile.writeStr("11111111111111111111111111111111111111111111111111111" + method.getBytecodeSignature() + "#" + new File(appPath).getName() + "\n");
-            writeFile.writeStr(content + "\n");
-            writeFile.writeStr("22222222222222222222222222222222222222222222222222222\n");
-            writeFile.close();
 
+            MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(content);
         }
         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
@@ -861,6 +995,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (!isSat) {
                 //logger.debug("path is infeasible");
                 isPathFeasible = false;
+
             } else {
                 //logger.debug("path is feasible---here is a solution");
                 isPathFeasible = true;
@@ -976,6 +1111,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     for (String actionSymbol : intentActionSymbols.values()) {//-----------action的值求解---------
                         if (actionSymbol.equals(symbol)) {
                             action = generatedValue.replaceAll("^\"|\"$", "");// ^ Matches the beginning of the line.
+                            System.out.println(action);
                         }
                     }
 
@@ -1055,22 +1191,16 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         genIntent.extras = new LinkedHashSet<>(extraData);
         genIntent.action = action;
         genIntent.categories = categories;
-        genIntent.targetComponent = method.getDeclaringClass().getName();
 
-        Intent modIntent = modifyGeneratedIntent(genIntent);
 
         if (pathIntents.containsKey(currPath)) {
-            Intent prevIntent = pathIntents.get(currPath);
-            //logger.debug("Replacing " + prevIntent + " with " + modIntent);
+            throw new RuntimeException("已经存在这个路径的intent");
         }
-        pathIntents.put(currPath, modIntent);
+        pathIntents.put(currPath, genIntent);
 
-        return new Pair<Intent, Boolean>(modIntent, isPathFeasible);
+        return new Pair<Intent, Boolean>(genIntent, isPathFeasible);
     }
 
-    protected Intent modifyGeneratedIntent(Intent genIntent) {
-        return genIntent;
-    }
 
     public Quartet<String, String, String, String> generateDatum(String symbol, String generatedValue, Map<String, String> extraLocalKeys) {
 
@@ -1112,10 +1242,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     Pair<Map<String, String>, Boolean> returnSatisfyingModelForZ3(Set<String> decls, Set<String> pathCond) throws Z3Exception {
         String pathCondFileName = null;
+        String outSpec = "";
         try {
             pathCondFileName = Config.Z3_RUNTIME_SPECS_DIR + File.separator + "z3_path_cond";
             PrintWriter out = new PrintWriter(pathCondFileName);
-            String outSpec = "";
+
             outSpec += "(declare-datatypes () ((Object Null NotNull)))\n" +
                     "(declare-fun containsKey (Object String) Bool)\n" +
                     "(declare-fun containsKey (String String) Bool)\n" +
@@ -1153,12 +1284,18 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             for (String c : pathCond) {
                 outSpec += c + "\n";
             }
+
+            String addAssert = addAssertToBlockRandomStringValue(decls, pathCond);
+            outSpec += addAssert;
+
             outSpec += "(check-sat-using (then qe smt))\n";
             outSpec += "(get-model)\n";
             //logger.debug("z3 specification sent to solver:");
             //logger.debug(outSpec);
             System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&finalSolve&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
             System.out.println(outSpec);
+
+
             System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
             out.print(outSpec);
 
@@ -1168,7 +1305,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
 
 
-        ProcessBuilder pb = new ProcessBuilder("/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/z3-4.6.0-x64-ubuntu-16.04/bin/z3", pathCondFileName);
+        ProcessBuilder pb = new ProcessBuilder("z3-4.7.1-x64-ubuntu-16.04/bin/z3", pathCondFileName);
 
         Process p = null;
         String returnedOutput = null;
@@ -1182,6 +1319,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (errCode != 0) {
                 String errorOut = convertStreamToString(p.getErrorStream());
                 System.out.println("errCode:" + errCode + "*" + errorOut + "*");
+                WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "errorSymbolicExcuation.txt", true);
+                writeFile.writeStr(outSpec + "\n" + "errCode:" + errCode + "*" + errorOut + "*" + "\n");
+                writeFile.close();
             }
 
 
@@ -1212,8 +1352,179 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (line.trim().equals("sat"))
                 isSat = true;
         }
+        if(!isSat)
+        {
+            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "ifeasiblePath.txt", true);
+            writeFile.writeStr("11111111111111111111111111111111111111111111111111111" + new File(appPath).getName() + "\n");
+            writeFile.writeStr(outSpec + "\n");
+            writeFile.writeStr("22222222222222222222222222222222222222222222222222222\n");
+            writeFile.close();
+        }
         return new Pair<Map<String, String>, Boolean>(model, isSat);
 
+    }
+
+    public static String addAssertToBlockRandomStringValue(Set<String> decls, Set<String> pathCond) {
+
+        Set<String> addAssertSet = new HashSet<>();
+        Pattern patStr = Pattern.compile("\\s*\\(\\s*declare-const\\s+(\\S+)\\s+String\\s*\\)\\s*");
+        Set<String> strVarSet = new HashSet<>();
+
+        for (String decl : decls) {
+            Matcher m = patStr.matcher(decl);
+            while (m.find()) {
+                String strVar = m.group(1);
+                strVarSet.add(strVar);
+                Set<String> hashSet = new HashSet<>();
+                hashSet.add(strVar);
+
+            }
+
+        }
+
+        //condExpr = "(assert (not (= " + opExpr1 + " " + opExpr2 + ")))";
+
+        Pattern strAssertPat = Pattern.compile("\\s*\\(\\s*assert\\s+\\(=\\s+(\\S+)\\s+(\\(str\\.\\+\\+\\s+\\\"ZMS!\\\"\\s+(\\S+)\\)|(\\S+))\\s*\\)\\s*\\)\\s*");
+        Set<String> hasStringConstantSet = new HashSet<>();
+        Map<String, UnionFindNode> unionFindNodeMap = make_set(strVarSet);
+        //(assert (= $r3_java.lang.String_onCreate_com.example.lab418.testwebview2.TestUnUsedIFBlockAlgorithm_13 (str.++ "ZMS!" "android.action.zms")))
+        for (String cond : pathCond) {
+            Matcher m = strAssertPat.matcher(cond);
+            while (m.find()) {
+                String strVar1 = m.group(1);
+                String strVar2 = m.group(2);
+                if (strVar2.contains("ZMS!")) {
+                    strVar2 = m.group(3);
+                }
+                if ((strVarSet.contains(strVar1) || strVar1.contains("\"")) && (strVarSet.contains(strVar2) || strVar2.contains("\""))) {
+                    if (!strVar1.contains("\"")) {
+
+
+                        if (strVar2.contains("\"")) {
+                            hasStringConstantSet.add(strVar1);
+                        } else {
+                            UnionTwoNode(unionFindNodeMap.get(strVar1), unionFindNodeMap.get(strVar2));
+                        }
+
+                    }
+
+                    if (!strVar2.contains("\"")) {
+
+
+                        if (strVar1.contains("\"")) {
+                            hasStringConstantSet.add(strVar2);
+                        } else {
+                            UnionTwoNode(unionFindNodeMap.get(strVar1), unionFindNodeMap.get(strVar2));
+                        }
+                    }
+
+
+                }
+            }
+
+        }
+
+        HashSet<UnionFindNode> rootSet = new HashSet<>();
+        for (Map.Entry<String, UnionFindNode> entry : unionFindNodeMap.entrySet()) {
+            UnionFindNode unionFindNode = entry.getValue();
+            if (unionFindNode.parent == unionFindNode) {
+                rootSet.add(unionFindNode);
+            }
+        }
+
+        for (String hasValueStrVar : hasStringConstantSet) {
+            UnionFindNode unionFindNode = unionFindNodeMap.get(hasValueStrVar);
+            UnionFindNode hasValueRootNode = find_set(unionFindNode);
+            if (hasValueRootNode == null) {
+                throw new RuntimeException("算法错误！");
+            } else {
+                rootSet.remove(hasValueRootNode);
+            }
+        }
+
+        for (UnionFindNode unionFindNode : rootSet) {
+            addAssertSet.add("(assert (= " + unionFindNode.value + " " + "\"!0!\"" + "))");
+        }
+
+
+        String returnStr = "";
+        for (String str : addAssertSet) {
+            returnStr = str + "\n" + returnStr;
+        }
+
+
+        return returnStr;
+    }
+
+    static class UnionFindNode {
+        int rank;
+        String value;
+        UnionFindNode parent;
+        Set<UnionFindNode> children = new HashSet<>();
+
+        public UnionFindNode(int rank, String value) {
+            this.rank = rank;
+            this.value = value;
+        }
+    }
+
+    public static Map<String, UnionFindNode> make_set(Set<String> strVarSet) {
+        Map<String, UnionFindNode> map = new HashMap<>();
+        for (String strVar : strVarSet) {
+            UnionFindNode unionFindNode = new UnionFindNode(0, strVar);
+            unionFindNode.parent = unionFindNode;
+            map.put(strVar, unionFindNode);
+        }
+
+        return map;
+    }
+
+    public static void UnionTwoNode(UnionFindNode a, UnionFindNode b) {
+        UnionFindNode x = find_set(a);
+        UnionFindNode y = find_set(b);
+        if (x == y) {
+            return;
+        }
+
+        link(x, y);
+
+    }
+
+    private static UnionFindNode find_set(UnionFindNode x) {
+
+        if (x != x.parent) {
+
+            UnionFindNode root = find_set(x.parent);
+            x.parent.children.remove(x);
+            x.parent = root;
+            root.children.add(x);
+
+        }
+        return x.parent;
+    }
+
+    public static void link(UnionFindNode x, UnionFindNode y) {
+        if (x.rank > y.rank) {
+            y.parent = x;
+            x.children.add(y);
+        } else {
+            x.parent = y;
+            y.children.add(x);
+            if (x.rank == y.rank) {
+                y.rank = y.rank + 1;
+            }
+        }
+    }
+
+
+    private static boolean haveStrConstant(Set<String> varEqualSet) {
+        for (String varString : varEqualSet) {
+            if (varString.contains("\"")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static String convertStreamToString(java.io.InputStream is) {
@@ -1532,7 +1843,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             newAsserts.add("(assert (= (fromIntent " + extraLocalSymbol + ") " + intentSymbol + "))");
                             extraFromMap.put(extraLocalSymbol, intentSymbol);
                             extraDataMapKey.put(extraLocalSymbol, keyStrConst.value);
-                            //addIntentExtraForPath(currPath, keyStrConst.value, newExtraType);
 
 
                             buildParamRefExpressions(method, currPath, newAsserts, newDecls, intentDef, intentSymbol);
@@ -1557,7 +1867,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             case "double":
                 return "Real";
             case "boolean":
-                return "Int";
+                return "Bool";
             case "byte":
                 return "Int";
             case "java.lang.String":
@@ -1803,17 +2113,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                 Quartet<Value, String, String, Unit> leftValue = pair_quartet_left_and_right.getValue0();
                                 Quartet<Value, String, String, Unit> rightValue = pair_quartet_left_and_right.getValue1();//注意 equals fallthough 没有判定，ifStmt约束还没有生成，所以其generateCondExpr为true
 
-                                if (leftValue == null && rightValue == null) {
+                                if (leftValue == null && rightValue == null) {//不是equals方法
                                     pair_quartet_left_and_right = findIntentBooleanValues(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, defDefintionStmtConditionLeft);
 
 
-                                    if (pair_quartet_left_and_right == null) {
+                                    if (pair_quartet_left_and_right == null) {//不是IntentBoolean方法
                                         pair_quartet_left_and_right = findBundleValues(sootMethod, defs, ifStmt, conditionLeft, path);//if match this case  leftValue！=null  rightValue=null
                                         leftValue = pair_quartet_left_and_right.getValue0();
                                         rightValue = pair_quartet_left_and_right.getValue1();
                                         if (leftValue == null) {//都不满足
 
-
+                                            UnHandleWriter.write(appPath + "%%" + jVInvokeExpr + "这种jVInvokeExpr boolean未考虑！\n");
                                             findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
                                             opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
                                             opVal2DefUnit = getDefOfValInPath(opVal2, ifStmt, path, defs);
@@ -1893,7 +2203,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                         MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("equals异常");
 
                                         throw new RuntimeException("equals异常");
-                                        //findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);//其实也没用
+
                                     } else {
 
 
@@ -1998,6 +2308,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //                        }
 
                             else {
+                                UnHandleWriter.write(appPath + "%%" + defDefintionStmtConditionLeft + "这种defDefintionStmtConditionLeft  boolean 未考虑！\n");
 
                                 findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
                                 opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
@@ -2007,6 +2318,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                         } else {
+
+                            UnHandleWriter.write(appPath + "%%" + defDefintionStmtConditionLeft + "这种defDefintionStmtConditionLeft 非 boolean未考虑！\n");
 
                             findKeysForLeftAndRightValues(ifStmt, opVal1, opVal2, defs, path);
                             opVal1DefUnit = getDefOfValInPath(opVal1, ifStmt, path, defs);
@@ -2154,7 +2467,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 if (defUnit instanceof DefinitionStmt) {
                     DefinitionStmt defStmt = (DefinitionStmt) defUnit;
                     String key = extractKeyFromIntentExtra(defStmt, defs, currPath);
-                    valueKeyMap.put(opVal, key);
+
                 }
             }
         }
@@ -2190,16 +2503,49 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     condExpr = "(assert (= (isNull " + opExpr1 + ") true))";
                 else if (isObjectEquals(opExpr1, opExpr2))
                     condExpr = "(assert (= (oEquals " + opExpr1 + " " + opExpr2 + ") true))";
-                else
+                else if (opExpr1.contains("_boolean_")) {
+                    if (opExpr2.equals("0")) {
+                        condExpr = "(assert (= " + opExpr1 + " " + "true" + "))";
+                    } else if (opExpr2.equals("1")) {
+                        condExpr = "(assert (= " + opExpr1 + " " + "false" + "))";
+                    } else {
+                        condExpr = "(assert (= " + opExpr1 + " " + opExpr2 + "))";
+                    }
+                } else {
                     condExpr = "(assert (= " + opExpr1 + " " + opExpr2 + "))";
+                }
+
                 break;
             case "!=":
                 if (opExpr2.equals("Null"))
                     condExpr = "(assert (= (isNull " + opExpr1 + ") false))";
                 else if (isObjectEquals(opExpr1, opExpr2))
                     condExpr = "(assert (= (oEquals " + opExpr1 + " " + opExpr2 + ") false))";
-                else
-                    condExpr = "(assert (not (= " + opExpr1 + " " + opExpr2 + ")))";
+                else {
+                    if (opExpr1.contains("_java.lang.String_"))//string op1=string op2
+                    {
+                        String notString = "(str.++ " + "\"ZMS!\" " + opExpr2 + ")";
+                        condExpr = "(assert (= " + opExpr1 + " " + notString + "))";
+
+                    } else//!string op1  !string  op2
+                    {
+                        if (opExpr1.contains("_boolean_")) {
+                            if (opExpr2.equals("0")) {
+                                condExpr = "(assert (not (= " + opExpr1 + " " + "true" + ")))";
+                            } else if (opExpr2.equals("1")) {
+                                condExpr = "(assert (not (= " + opExpr1 + " " + "false" + ")))";
+                            } else {
+                                condExpr = "(assert (not (= " + opExpr1 + " " + opExpr2 + ")))";
+                            }
+
+                        } else {
+                            condExpr = "(assert (not (= " + opExpr1 + " " + opExpr2 + ")))";
+                        }
+
+                    }
+
+                }
+
                 break;
             case ">":
                 condExpr = "(assert (> " + opExpr1 + " " + opExpr2 + "))";
@@ -2228,12 +2574,12 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
     private boolean isObjectEquals(String opExpr1, String opExpr2) {
-        if (opExpr1.contains("_java.lang.String_") && !opExpr2.contains("_java.lang.String_") && !opExpr2.contains("\""))
+        if (opExpr1.contains("_java.lang.String_") && !opExpr2.contains("_java.lang.String_") && !opExpr2.contains("\""))//一个是String，另外一个不是String
             return true;
         else if (!opExpr1.contains("_java.lang.String_") && opExpr2.contains("_java.lang.String_") && !opExpr2.contains("\""))
             return true;
         else
-            return false;
+            return false;//String  String  or   ！String   ！String
     }
 
     private String createZ3Expr(Value opVal, Unit currUnit, Unit defUnit, SootMethod method, Set<String> decls) {
@@ -2280,6 +2626,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 localSymbolMap.put(opLocal, symbol);
             }
 
+
             switch (opLocal.getType().toString().trim()) {
                 case "short":
                     newDecl = "(declare-const " + symbol + " Int )";
@@ -2302,7 +2649,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     opExpr = symbol;
                     break;
                 case "boolean":
-                    newDecl = "(declare-const " + symbol + " Int )";
+                    newDecl = "(declare-const " + symbol + " Bool )";
                     opExpr = symbol;
                     break;
                 case "byte":
@@ -2426,6 +2773,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                             if (jviExpr.getArg(0) instanceof StringConstant) {
                                                 StringConstant catStrConst = (StringConstant) jviExpr.getArg(0);
                                                 category = catStrConst.value;
+                                            } else//--------------------------------------------------
+                                            {
+                                                UnHandleWriter.write(appPath + "%%" + "intent has category 的值来源于非 StringConstant！" + jviExpr + "\n");
                                             }
 
                                             Body b = method.getActiveBody();
@@ -2449,7 +2799,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                             } else { // intent does not contain the category
                                                 newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
                                             }
-                                            leftVal = new Quartet<Value, String, String, Unit>(intentLocal, null, newAssert, intentDef);
+                                            leftVal = new Quartet<Value, String, String, Unit>(defStmt.getLeftOp(), null, newAssert, defStmt);
                                         }
                                     }
                                 }
@@ -2465,12 +2815,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     Pair<Quartet<Value, String, String, Unit>, Quartet<Value, String, String, Unit>> findIntentBooleanValues(SootMethod sootMethod, SimpleLocalDefs defs, IfStmt ifStmt, Value conditionLeft, List<Unit> path, JVirtualInvokeExpr jVInvokeExpr, DefinitionStmt definitionStmtConditionLeft) {
 
 
-        if (Pattern.matches("hasExtra", jVInvokeExpr.getMethod().getName())) {//ok
+        if (jVInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.content.Intent")) {
 
-            return intentHasExtra(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, definitionStmtConditionLeft);
+            if (Pattern.matches("hasExtra", jVInvokeExpr.getMethod().getName())) {//ok
 
-        } else if (Pattern.matches("hasCategory", jVInvokeExpr.getMethod().getName())) {//ok
-            return findCategories(sootMethod, defs, ifStmt, conditionLeft, path);
+                return intentHasExtra(sootMethod, defs, ifStmt, conditionLeft, path, jVInvokeExpr, definitionStmtConditionLeft);
+
+            } else if (Pattern.matches("hasCategory", jVInvokeExpr.getMethod().getName())) {//ok
+                return findCategories(sootMethod, defs, ifStmt, conditionLeft, path);
+            } else {
+                UnHandleWriter.write(appPath + "%%" + "没有处理的返回值为boolean的intent方法:" + jVInvokeExpr.getMethod() + "\n");
+            }
         }
 
 
@@ -2505,8 +2860,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             if (jVInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.content.Intent")) {
 
 
-                Value origValue = null;
-                Unit defOrigValueUnit = null;
+                Value origValue = defDefintionStmtConditionLeft.getLeftOp();
+                Unit defOrigValueUnit = defDefintionStmtConditionLeft;
 
                 String newDecl = null;
                 String newAssert = null;
@@ -2514,20 +2869,23 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 Local intentLocal = (Local) jVInvokeExpr.getBase();
                 int count = 0;
 
-                for (Unit defIntentLocalUnit : defs.getDefsOfAt(intentLocal, defDefintionStmtConditionLeft)) {
-                    if (!isDefInPathAndLatest(path, defIntentLocalUnit, intentLocal, defDefintionStmtConditionLeft, defs)) {
+                Unit defIntentLocalUnit = null;
+                for (Unit oneDefIntentLocalUnit : defs.getDefsOfAt(intentLocal, defDefintionStmtConditionLeft)) {
+                    if (!isDefInPathAndLatest(path, oneDefIntentLocalUnit, intentLocal, defDefintionStmtConditionLeft, defs)) {
                         continue;
                     }
-                    origValue = intentLocal;
-                    defOrigValueUnit = defIntentLocalUnit;
+
+                    defIntentLocalUnit = oneDefIntentLocalUnit;
                     count = count + 1;
 
 
                 }
-                assert count == 1;
-                String intentLocalSymbol = createSymbol(intentLocal, sootMethod, defOrigValueUnit);//intent 的定义语句
+                if (count > 1) {
+                    throw new RuntimeException("intent 定义语句有多个！");
+                }
+                String intentLocalSymbol = createSymbol(intentLocal, sootMethod, defIntentLocalUnit);//intent 的定义语句
                 symbolLocalMap.put(intentLocalSymbol, intentLocal);
-                symbolDefUnitMap.put(intentLocalSymbol, defOrigValueUnit);
+                symbolDefUnitMap.put(intentLocalSymbol, defIntentLocalUnit);
                 localSymbolMap.put(intentLocal, intentLocalSymbol);
                 newDecl = "(declare-const " + intentLocalSymbol + " Object )";
                 newAssert = "(assert (= " + intentLocalSymbol + " NotNull))";
@@ -2539,7 +2897,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                 } else if (jVInvokeExpr.getArg(0) instanceof Local) {
-                    Local keyLocal = (Local) (jVInvokeExpr.getArg(0));
+                    Local keyLocal = (Local) (jVInvokeExpr.getArg(0));//-----------------------------------
+                    UnHandleWriter.write(appPath + "%%" + "intent has extra的值来源于变量！" + jVInvokeExpr + "\n");
 
 
                 } else {
@@ -2675,7 +3034,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                             }
                                                                         }
 
-                                                                        leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
+                                                                        leftVal = new Quartet<Value, String, String, Unit>(local, newDecl, newAssert, defUnit);
                                                                     }
                                                                 }
                                                             } else if (bundleInvoke.getMethod().getName().equals("getBundleExtra"))//43个------------------------这里表明bundle是从intent的getBundleExtra取出来，这里intent的getBundleExtra约束已经再处理
@@ -2717,7 +3076,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                 }
 
 
-                                                                leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
+                                                                leftVal = new Quartet<Value, String, String, Unit>(local, newDecl, newAssert, defUnit);
 
 
                                                             }
@@ -2729,6 +3088,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                         }
                                     } else if (keyVal instanceof Local)//------------------------------------------------写一个专门抽取函数
                                     {
+                                        UnHandleWriter.write(appPath + "%%" + "bundle contains key 是一个变量！\n");
 
                                     }
                                 } else if (ie.getMethod().getName().equals("getBoolean")) {
@@ -2759,7 +3119,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                         }
                                     }
 
-                                    leftVal = new Quartet<Value, String, String, Unit>(null, newDecl, newAssert, null);
+                                    leftVal = new Quartet<Value, String, String, Unit>(local, newDecl, newAssert, defUnit);
 
                                 }
                             }
@@ -2948,8 +3308,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         } else {
 
+            UnHandleWriter.write(appPath + "%%" + "不能处理equals的两个参数的类型情况" + equalsUnit + "\n");
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("不能处理equals的两个参数的类型情况" + equalsUnit);
-            throw new RuntimeException("不能处理equals的两个参数的类型情况" + equalsUnit);//---------------------------------------------------------
+            throw new RuntimeException("不能处理equals的两个参数的类型情况" + equalsUnit);
+
         }
 
         return new Quartet<Value, String, String, Unit>(origVal, newDecl, newAssert, defOrigValUnit);
@@ -2957,8 +3319,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
     private Quartet<Value, String, String, Unit> findLocalSource(Local localVar, Unit curUnit, SootMethod sootMethod, SimpleLocalDefs defs, List<Unit> path) {
-
-        String key = null;
 
 
         String newDecl = null;
@@ -2987,9 +3347,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     //如果这个x1来源于intent方法, 这个约束已经在handleIntentExtra那里处理了。不用生成约束
 
 
-                    key = getExtra(defs, path, defDefintionStmt);//但是得把getExtra的key取出保存方便后面使用
-
-
                 } else if (defDefintionStmt.getRightOp() instanceof JCastExpr) {//x1=(String)3.5
 
                     JCastExpr jCastExpr = (JCastExpr) defDefintionStmt.getRightOp();
@@ -3009,7 +3366,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                 origVal = defLocalAssignFromCastStmt.getLeftOp();
                                 defUnitOfOrigVal = defLocalAssignFromCastUnit;
 
-                                key = extractKeyFromIntentExtra(defLocalAssignFromCastStmt, defs, path);
+
                             }
                         }
                     }
@@ -3039,18 +3396,19 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                         newAssert += "(assert ( = (method " + prSymbol + ") \"" + sootMethod.getDeclaringClass().getName() + "." + sootMethod.getName() + "\"))\n";
                         newAssert += "(assert (= (hasParamRef " + localSymbol + ") " + prSymbol + "))";
 
+
+                        UnHandleWriter.write(appPath + "%%" + "equals: " + "x1 from parameter" + "\n");
+
                     }
                 } else {// from  field or other sources
 
-
+                    UnHandleWriter.write(appPath + "%%" + "equals: " + "x1 from " + defDefintionStmt.getRightOp() + "\n");
                 }
 
             }
 
 
         }
-
-        valueKeyMap.put(origVal, key);//等到之后使用
 
 
         return new Quartet<Value, String, String, Unit>(origVal, newDecl, newAssert, defUnitOfOrigVal);
@@ -3160,124 +3518,124 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return key;
     }
 
-    private String getExtra(SimpleLocalDefs defs, List<Unit> path, DefinitionStmt defStmt) {//intent and bundle 的extra
-        String key = null;
-
-
-        if (defStmt.getRightOp() instanceof JVirtualInvokeExpr) {
-
-            JVirtualInvokeExpr jVirtualInvokeExpr = (JVirtualInvokeExpr) defStmt.getRightOp();
-            boolean keyExtractionEnabled = false;
-
-            if (Pattern.matches("get.*Extra", jVirtualInvokeExpr.getMethod().getName())) {//不需要判断返回值类型的，因为前面的equals已经限制了满足这个方法是getStringExtra等
-
-                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().toString().equals("android.content.Intent")) {
-                    keyExtractionEnabled = true;
-
-                }
-            }
-            if (Pattern.matches("has.*Extra", jVirtualInvokeExpr.getMethod().getName())) {
-                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().toString().equals("android.content.Intent")) {
-                    keyExtractionEnabled = true;
-
-                }
-            }
-            if (Globals.bundleExtraDataMethodsSet.contains(jVirtualInvokeExpr.getMethod().getName())) {
-                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.os.Bundle")) {
-                    keyExtractionEnabled = true;
-
-                }
-                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.os.BaseBundle")) {
-                    keyExtractionEnabled = true;
-
-                }
-            }
-
-            if (keyExtractionEnabled) {
-                if (!(jVirtualInvokeExpr.getArg(0) instanceof StringConstant)) { //参数不是一个字符串常量
-                    if (jVirtualInvokeExpr.getArg(0) instanceof Local) {//参数是一个变量
-                        Local keyLocal = (Local) jVirtualInvokeExpr.getArg(0);
-                        List<Unit> defUnits = defs.getDefsOfAt(keyLocal, defStmt);
-                        for (Unit defUnitOfKey : defUnits) {
-
-                            if (!isDefInPathAndLatest(path, defUnitOfKey, keyLocal, defStmt, defs)) {
-                                continue;
-                            }
-                            if (defUnitOfKey instanceof DefinitionStmt) {
-                                DefinitionStmt keyLocalDefStmt = (DefinitionStmt) defUnitOfKey;
-                                if (keyLocalDefStmt.getRightOp() instanceof StringConstant) {
-                                    key = ((StringConstant) keyLocalDefStmt.getRightOp()).value;
-                                } else if (keyLocalDefStmt.getRightOp() instanceof VirtualInvokeExpr) {//key的值来源于Enum
-
-
-                                    VirtualInvokeExpr invokeExpr = (VirtualInvokeExpr) keyLocalDefStmt.getRightOp();
-                                    if (invokeExpr.getBase() instanceof Local) {
-                                        if (invokeExpr.getMethod().getDeclaringClass().getType().toString().equals("java.lang.Enum")) {
-                                            Local base = (Local) invokeExpr.getBase();
-                                            List<Unit> baseDefs = defs.getDefsOfAt(base, keyLocalDefStmt);
-                                            for (Unit baseDef : baseDefs) {
-
-                                                if (!isDefInPathAndLatest(path, baseDef, base, keyLocalDefStmt, defs)) {
-                                                    continue;
-                                                }
-                                                if (baseDef instanceof DefinitionStmt) {
-                                                    DefinitionStmt baseDefStmt = (DefinitionStmt) baseDef;
-                                                    if (baseDefStmt.getRightOp() instanceof FieldRef) {
-                                                        FieldRef fieldRef = (FieldRef) baseDefStmt.getRightOp();
-                                                        if (fieldRef.getField().getDeclaringClass().toString().equals(invokeExpr.getBase().getType().toString())) {
-                                                            key = fieldRef.getField().getName();
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                    }
-                                    //continue;
-                                    //throw new RuntimeException("key的值来源于Enum");
-
-                                } else if (keyLocalDefStmt.getRightOp() instanceof StaticFieldRef) {//key的值来源于静态属性
-                                    //-----------------------------------------------------------------------
-                                    SootField keyField = ((StaticFieldRef) keyLocalDefStmt.getRightOp()).getField();
-                                    SootMethod clinitMethod = keyField.getDeclaringClass().getMethodByName("<clinit>");//静态初始化方法
-                                    if (clinitMethod.hasActiveBody()) {
-                                        Body clinitBody = clinitMethod.getActiveBody();
-                                        for (Unit clinitUnit : clinitBody.getUnits()) {
-                                            if (clinitUnit instanceof DefinitionStmt) {
-                                                DefinitionStmt clinitDefStmt = (DefinitionStmt) clinitUnit;
-                                                if (clinitDefStmt.getLeftOp() instanceof StaticFieldRef) {
-                                                    SootField clinitField = ((StaticFieldRef) clinitDefStmt.getLeftOp()).getField();
-                                                    if (clinitField.equals(keyField)) {
-                                                        if (clinitDefStmt.getRightOp() instanceof StringConstant) {
-                                                            StringConstant clinitStringConst = (StringConstant) clinitDefStmt.getRightOp();
-                                                            key = clinitStringConst.value;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                    }
-                                    //throw new RuntimeException("key的值来源于静态属性");
-                                } else {
-
-                                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
-                                    throw new RuntimeException("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
-                                }
-
-                            }
-                        }
-                    }
-                } else {//参数是一个字符串常量
-                    key = jVirtualInvokeExpr.getArg(0).toString();
-                }
-            }
-
-        }
-
-
-        return key;
-    }
+//    private String getExtra(SimpleLocalDefs defs, List<Unit> path, DefinitionStmt defStmt) {//intent and bundle 的extra
+//        String key = null;
+//
+//
+//        if (defStmt.getRightOp() instanceof JVirtualInvokeExpr) {
+//
+//            JVirtualInvokeExpr jVirtualInvokeExpr = (JVirtualInvokeExpr) defStmt.getRightOp();
+//            boolean keyExtractionEnabled = false;
+//
+//            if (Pattern.matches("get.*Extra", jVirtualInvokeExpr.getMethod().getName())) {//不需要判断返回值类型的，因为前面的equals已经限制了满足这个方法是getStringExtra等
+//
+//                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().toString().equals("android.content.Intent")) {
+//                    keyExtractionEnabled = true;
+//
+//                }
+//            }
+//            if (Pattern.matches("has.*Extra", jVirtualInvokeExpr.getMethod().getName())) {
+//                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().toString().equals("android.content.Intent")) {
+//                    keyExtractionEnabled = true;
+//
+//                }
+//            }
+//            if (Globals.bundleExtraDataMethodsSet.contains(jVirtualInvokeExpr.getMethod().getName())) {
+//                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.os.Bundle")) {
+//                    keyExtractionEnabled = true;
+//
+//                }
+//                if (jVirtualInvokeExpr.getMethod().getDeclaringClass().getName().equals("android.os.BaseBundle")) {
+//                    keyExtractionEnabled = true;
+//
+//                }
+//            }
+//
+//            if (keyExtractionEnabled) {
+//                if (!(jVirtualInvokeExpr.getArg(0) instanceof StringConstant)) { //参数不是一个字符串常量
+//                    if (jVirtualInvokeExpr.getArg(0) instanceof Local) {//参数是一个变量
+//                        Local keyLocal = (Local) jVirtualInvokeExpr.getArg(0);
+//                        List<Unit> defUnits = defs.getDefsOfAt(keyLocal, defStmt);
+//                        for (Unit defUnitOfKey : defUnits) {
+//
+//                            if (!isDefInPathAndLatest(path, defUnitOfKey, keyLocal, defStmt, defs)) {
+//                                continue;
+//                            }
+//                            if (defUnitOfKey instanceof DefinitionStmt) {
+//                                DefinitionStmt keyLocalDefStmt = (DefinitionStmt) defUnitOfKey;
+//                                if (keyLocalDefStmt.getRightOp() instanceof StringConstant) {
+//                                    key = ((StringConstant) keyLocalDefStmt.getRightOp()).value;
+//                                } else if (keyLocalDefStmt.getRightOp() instanceof VirtualInvokeExpr) {//key的值来源于Enum
+//
+//
+//                                    VirtualInvokeExpr invokeExpr = (VirtualInvokeExpr) keyLocalDefStmt.getRightOp();
+//                                    if (invokeExpr.getBase() instanceof Local) {
+//                                        if (invokeExpr.getMethod().getDeclaringClass().getType().toString().equals("java.lang.Enum")) {
+//                                            Local base = (Local) invokeExpr.getBase();
+//                                            List<Unit> baseDefs = defs.getDefsOfAt(base, keyLocalDefStmt);
+//                                            for (Unit baseDef : baseDefs) {
+//
+//                                                if (!isDefInPathAndLatest(path, baseDef, base, keyLocalDefStmt, defs)) {
+//                                                    continue;
+//                                                }
+//                                                if (baseDef instanceof DefinitionStmt) {
+//                                                    DefinitionStmt baseDefStmt = (DefinitionStmt) baseDef;
+//                                                    if (baseDefStmt.getRightOp() instanceof FieldRef) {
+//                                                        FieldRef fieldRef = (FieldRef) baseDefStmt.getRightOp();
+//                                                        if (fieldRef.getField().getDeclaringClass().toString().equals(invokeExpr.getBase().getType().toString())) {
+//                                                            key = fieldRef.getField().getName();
+//                                                        }
+//                                                    }
+//                                                }
+//                                            }
+//                                        }
+//
+//                                    }
+//                                    //continue;
+//                                    //throw new RuntimeException("key的值来源于Enum");
+//
+//                                } else if (keyLocalDefStmt.getRightOp() instanceof StaticFieldRef) {//key的值来源于静态属性
+//                                    //-----------------------------------------------------------------------
+//                                    SootField keyField = ((StaticFieldRef) keyLocalDefStmt.getRightOp()).getField();
+//                                    SootMethod clinitMethod = keyField.getDeclaringClass().getMethodByName("<clinit>");//静态初始化方法
+//                                    if (clinitMethod.hasActiveBody()) {
+//                                        Body clinitBody = clinitMethod.getActiveBody();
+//                                        for (Unit clinitUnit : clinitBody.getUnits()) {
+//                                            if (clinitUnit instanceof DefinitionStmt) {
+//                                                DefinitionStmt clinitDefStmt = (DefinitionStmt) clinitUnit;
+//                                                if (clinitDefStmt.getLeftOp() instanceof StaticFieldRef) {
+//                                                    SootField clinitField = ((StaticFieldRef) clinitDefStmt.getLeftOp()).getField();
+//                                                    if (clinitField.equals(keyField)) {
+//                                                        if (clinitDefStmt.getRightOp() instanceof StringConstant) {
+//                                                            StringConstant clinitStringConst = (StringConstant) clinitDefStmt.getRightOp();
+//                                                            key = clinitStringConst.value;
+//                                                        }
+//                                                    }
+//                                                }
+//                                            }
+//                                        }
+//
+//                                    }
+//                                    //throw new RuntimeException("key的值来源于静态属性");
+//                                } else {
+//
+//                                    MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).error("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
+//                                    throw new RuntimeException("Unhandled case for key来源于其他类型语句" + keyLocalDefStmt.getRightOp());
+//                                }
+//
+//                            }
+//                        }
+//                    }
+//                } else {//参数是一个字符串常量
+//                    key = jVirtualInvokeExpr.getArg(0).toString();
+//                }
+//            }
+//
+//        }
+//
+//
+//        return key;
+//    }
 
     class UnitEdge {
         Unit src;
@@ -3384,8 +3742,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             appDir = Config.defaultAppPath;
         } else {
 
-            //appDir = "/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
+
             appDir = Config.wandoijiaAPP;
+            //appDir = Config.fDroidAPPDir;
         }
 
         File appDirFile = new File(appDir);
