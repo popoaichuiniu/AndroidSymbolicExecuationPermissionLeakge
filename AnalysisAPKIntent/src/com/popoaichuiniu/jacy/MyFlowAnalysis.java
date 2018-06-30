@@ -119,7 +119,7 @@ public class MyFlowAnalysis extends BackwardFlowAnalysis<Unit, FlowSet<Object>> 
 //				
 //				for(Value arg:args)					
 //				{
-//					if(arg.equivTo(item)&&)//调用语句调用了In里的参数,可能在调用的方法体中被修改了 xxx(item)   item可能是表达式吗？不能是，三地址结构导致。且item必须是引用才能被修改,这里
+//					if(arg.equivExtraTo(item)&&)//调用语句调用了In里的参数,可能在调用的方法体中被修改了 xxx(item)   item可能是表达式吗？不能是，三地址结构导致。且item必须是引用才能被修改,这里
 //					{
 //						out.add(invokeStmt.getInvokeExpr());
 //						out.remove(item);

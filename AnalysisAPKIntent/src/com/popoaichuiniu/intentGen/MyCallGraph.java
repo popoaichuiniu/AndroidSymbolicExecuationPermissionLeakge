@@ -3,6 +3,7 @@ package com.popoaichuiniu.intentGen;
 import com.popoaichuiniu.jacy.CGExporter;
 import com.popoaichuiniu.util.MyLogger;
 import com.popoaichuiniu.util.Util;
+import com.popoaichuiniu.util.WriteFile;
 import soot.Kind;
 import soot.MethodOrMethodContext;
 import soot.SootMethod;
@@ -229,6 +230,9 @@ public class MyCallGraph extends CallGraph {
 
                 if (onePair.srcUnit == null)//如果有的边的srcUnit就不分析它.
                 {
+                    WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/sootmethodEdgeNoSrcUnit.txt", true);
+                    writeFile.writeStr(oneSootMethod+"&&"+new File(intentConditionTransformSymbolicExcutation.appPath).getName()+"\n");
+                    writeFile.close();
                     continue;
                 }
 
