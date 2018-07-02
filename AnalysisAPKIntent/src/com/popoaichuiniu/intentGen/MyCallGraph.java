@@ -299,7 +299,7 @@ public class MyCallGraph extends CallGraph {
         if ((intent.action != null) && (!intent.action.trim().equals(""))) {
             return true;
         }
-        if (intent.extras != null && intent.extras.size() != 0) {
+        if (intent.myExtras != null && intent.myExtras.size() != 0) {
             return true;
         }
         if (intent.categories != null && intent.categories.size() != 0) {

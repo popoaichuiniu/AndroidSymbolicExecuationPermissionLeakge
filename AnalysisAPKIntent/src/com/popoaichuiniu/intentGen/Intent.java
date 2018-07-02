@@ -1,23 +1,21 @@
 package com.popoaichuiniu.intentGen;
 
-import org.javatuples.Quartet;
 
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+
 
 public class Intent {
-    public Set<Quartet<String,String,String,String>> extras = new LinkedHashSet<Quartet<String,String,String,String>>();
+
+    public Set<IntentExtraKey> myExtras=new HashSet<>();
     public String action;
     public String targetComponent;
     public Set<String> categories = new LinkedHashSet<String>();
 
     public Intent(Intent intent) {
-        if (intent.extras != null) {
-            this.extras = new LinkedHashSet<>(intent.extras);
+        if (intent.myExtras != null) {
+            this.myExtras = new HashSet<>(intent.myExtras);
         } else {
-            this.extras = null;
+            this.myExtras = null;
         }
 
         if (intent.action != null) {
@@ -53,7 +51,7 @@ public class Intent {
 
         Intent intent = (Intent) o;
 
-        if (!equivExtraTo(extras,intent.extras)) return false;
+        if (!equivExtraTo(myExtras,intent.myExtras)) return false;
         if (action != null ? !action.equals(intent.action) : intent.action != null) return false;
         if (targetComponent != null ? !targetComponent.equals(intent.targetComponent) : intent.targetComponent != null)
             return false;
@@ -61,7 +59,7 @@ public class Intent {
 
     }
 
-    public boolean equivExtraTo(Set<Quartet<String,String,String,String>> set1, Set<Quartet<String,String,String,String>> set2)
+    public boolean equivExtraTo(Set<IntentExtraKey> set1, Set<IntentExtraKey> set2)
     {
         if(set1==null&&set2!=null || set1!=null&&set2==null)
         {
@@ -73,27 +71,35 @@ public class Intent {
             return true;
         }
 
-        Set<IntentExtraValue> setIntentExtraValue1=new HashSet<>();
-        Set<IntentExtraValue> setIntentExtraValue2=new HashSet<>();
 
-        for(Quartet<String,String,String,String> quartet1:set1)
+        if(set1.size()!=set2.size())
         {
-            if(quartet1.getValue0().equals("IntentKey"))
-            {
-                setIntentExtraValue1.add(new IntentExtraValue(quartet1.getValue2(),quartet1.getValue1(),quartet1.getValue3()));
-            }
-
-        }
-        for(Quartet<String,String,String,String> quartet2:set2)
-        {
-            if(quartet2.getValue0().equals("IntentKey"))
-            {
-                setIntentExtraValue2.add(new IntentExtraValue(quartet2.getValue2(),quartet2.getValue1(),quartet2.getValue3()));
-            }
-
+            return false;
         }
 
-        return setIntentExtraValue1.containsAll(setIntentExtraValue2)&&setIntentExtraValue2.containsAll(setIntentExtraValue1);
+       Set<IntentExtraValue> sum=new HashSet<>();
+
+        for(IntentExtraKey intentExtraKey1:set1)
+        {
+            sum.add(new IntentExtraValue(intentExtraKey1));
+        }
+        for(IntentExtraKey intentExtraKey2:set2)
+        {
+            sum.add(new IntentExtraValue(intentExtraKey2));
+        }
+
+        if(sum.size()!=set1.size())
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+
+
+
+
 
 
     }
@@ -110,13 +116,18 @@ public class Intent {
             return true;
         }
 
-        return cateSet1.containsAll(cateSet2)&&cateSet2.containsAll(cateSet1);
+        if(cateSet1.size()!=cateSet2.size())
+        {
+            return false;
+        }
+
+        return cateSet1.containsAll(cateSet2);
 
     }
 
     @Override
     public int hashCode() {
-        int result = extras != null ? extras.hashCode() : 0;
+        int result = myExtras != null ? myExtras.hashCode() : 0;
         result = 31 * result + (action != null ? action.hashCode() : 0);
         result = 31 * result + (targetComponent != null ? targetComponent.hashCode() : 0);
         result = 31 * result + (categories != null ? categories.hashCode() : 0);
@@ -126,18 +137,27 @@ public class Intent {
     @Override
     public String toString() {
         return "Intent{" +
-                "extras=" + extras +
+                "extras=" + myExtras +
                 ", action='" + action + '\'' +
                 ", targetComponent='" + targetComponent + '\'' +
                 ", categories=" + categories +
                 '}';
     }
+
+
 }
 class IntentExtraKey {
     String key;
     String type;
     String value;
 
+    public  IntentExtraKey(IntentExtraValue intentExtraValue){
+
+        this.key=intentExtraValue.key;
+        this.type=intentExtraValue.type;
+        this.value=intentExtraValue.value;
+
+    }
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -157,6 +177,13 @@ class IntentExtraKey {
         this.key = key;
         this.type = type;
         this.value = value;
+    }
+
+    @Override
+    public String toString() {
+        return  "{"+"key='" + key + '\'' +
+                ", type='" + type + '\'' +
+                ", value='" + value + '\''+"}";
     }
 }
 

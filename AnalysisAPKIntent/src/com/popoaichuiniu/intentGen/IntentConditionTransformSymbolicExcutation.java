@@ -63,9 +63,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private MyUnitGraph myUnitGraphReduced = null;
 
 
-
-
-    private  Set<IntentUnit> ultiIntentSet=new HashSet<>();
+    private Set<IntentUnit> ultiIntentSet = new HashSet<>();
 
 
     /**
@@ -94,21 +92,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private Map<String, String> extraFromMap = new HashMap<>();//key:extra   value:extra 从哪里得到, intent还是bundle
 
 
-
-
     Set<Pair<Unit, SootMethod>> infeasibleTargets = new LinkedHashSet<Pair<Unit, SootMethod>>();
 
 
     Map<List<Unit>, Intent> pathIntents = new LinkedHashMap<List<Unit>, Intent>();
-
-
-
-
-
-
-
-
-
 
 
     public Map<SootMethod, IntentFlowAnalysis> sootMethodIntentFlowAnalysisMap = new HashMap<>();
@@ -119,8 +106,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     public IntentConditionTransformSymbolicExcutation(String apkFilePath) {
 
         appPath = apkFilePath;
-
-
 
 
         BufferedReader bufferedReader = null;
@@ -161,7 +146,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
 
 
-
         AndroidCallGraphHelper androidCallGraphHelper = new AndroidCallGraphHelper(appPath, Config.androidJar);
         AndroidInfoHelper androidInfoHelper = new AndroidInfoHelper(appPath);
         List<SootMethod> ea_entryPoints = Util.getEA_EntryPoints(androidCallGraphHelper, androidInfoHelper);
@@ -194,7 +178,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", false);
         for (IntentUnit intentUnit : ultiIntentSet) {
-            writeFile.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" +intentUnit.unit.getTag("BytecodeOffsetTag") + "\n");
+            writeFile.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" + intentUnit.unit.getTag("BytecodeOffsetTag") + "\n");
         }
 
 
@@ -202,7 +186,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
     }
-
 
 
     private void analysisSootMethod(SootMethod sootMethod, CallGraph cg, List<SootMethod> ea_entryPoints, List<SootMethod> roMethods) {
@@ -413,8 +396,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         getCallPathSootMethod(myCallGraph.dummyMainMethod, new ArrayList<SootMethod>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths, sootMethodSetIntentCondition, sootMethodIntentConditionSummary);
 
 
-
-
         for (Iterator<Edge> edgeIterator = myCallGraph.edgesOutOf(myCallGraph.dummyMainMethod); edgeIterator.hasNext(); ) {
 
             Edge outEdge = edgeIterator.next();
@@ -425,18 +406,16 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             if (intentSet != null) {
                 for (Intent intent : intentSet) {
-                    intent.targetComponent = sootMethodTgt.getDeclaringClass().getName();
-                    ultiIntentSet.add(new IntentUnit(intent,myCallGraph.targetUnit));
+                    intent.targetComponent = sootMethodTgt.getBytecodeSignature()+"##"+sootMethodTgt.getDeclaringClass().getName();
+                    ultiIntentSet.add(new IntentUnit(intent, myCallGraph.targetUnit));
 
                 }
-
 
 
             }
 
 
         }
-
 
 
         // MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("sootMethodCallFinalPaths大小：" + sootMethodCallFinalPaths.size());
@@ -474,7 +453,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 //        }
     }
 
-    public static class IntentUnit{
+    public static class IntentUnit {
 
         Intent intent;//key
         Unit unit;
@@ -777,9 +756,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                         {
                             Intent newIntent = joinTwoIntent(intentParent, intentChildren);//融合intent
-                            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/joinIntentResults.txt", true);
-                            writeFile.writeStr(newIntent + "\n");
-                            writeFile.close();
+
                             if (newIntent != null) {
                                 hashSetParentSummary.add(newIntent);
                             }
@@ -806,8 +783,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     public static Set<Intent> joinIntentSet(Set<Intent> hashSetParentSummary) {
 
-        Set<Intent> returnIntentSet = new HashSet<>();
 
+        Set<Intent> allReturnIntentSet = new HashSet<>();
         Map<String, Set<Intent>> similarActionKeyMap = new HashMap<>();
         for (Intent intent : hashSetParentSummary) {
             Set<Intent> similarActionIntentSet = similarActionKeyMap.get(intent.action);
@@ -821,6 +798,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         for (Map.Entry<String, Set<Intent>> entryActionIntentSet : similarActionKeyMap.entrySet()) {
 
+            Set<Intent> returnIntentSet = new HashSet<>();
+
             Map<IntentExtraKey, Set<IntentExtraValue>> similarExtraKeyTypeMap = new HashMap<>();//根据intentExtra归类
             Map<String, Set<String>> categoryHashMap = new HashMap<>();//根据category归类
             String action = entryActionIntentSet.getKey();
@@ -828,19 +807,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             Set<Intent> similarActionSet = entryActionIntentSet.getValue();
 
             for (Intent oneIntent : similarActionSet) {
-                for (Quartet<String, String, String, String> oneExtra : oneIntent.extras) {
-                    if (oneExtra.getValue0().equals("IntentKey")) {
-                        IntentExtraKey intentExtraKey = new IntentExtraKey(oneExtra.getValue2(), oneExtra.getValue1(), oneExtra.getValue3());
-                        Set<IntentExtraValue> similarIntentExtraKeyTypeSet = similarExtraKeyTypeMap.get(intentExtraKey);
-                        if (similarIntentExtraKeyTypeSet == null) {
-                            similarIntentExtraKeyTypeSet = new HashSet<>();
-                        }
-
-                        similarIntentExtraKeyTypeSet.add(new IntentExtraValue(intentExtraKey));
-                        similarExtraKeyTypeMap.put(intentExtraKey, similarIntentExtraKeyTypeSet);
+                for (IntentExtraKey intentExtraKey : oneIntent.myExtras) {
 
 
+                    Set<IntentExtraValue> similarIntentExtraKeyTypeSet = similarExtraKeyTypeMap.get(intentExtraKey);
+                    if (similarIntentExtraKeyTypeSet == null) {
+                        similarIntentExtraKeyTypeSet = new HashSet<>();
                     }
+
+                    similarIntentExtraKeyTypeSet.add(new IntentExtraValue(intentExtraKey));
+                    similarExtraKeyTypeMap.put(intentExtraKey, similarIntentExtraKeyTypeSet);
+
 
                 }
 
@@ -858,139 +835,161 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             }
 
 
-                Set<IntentExtraValue> commonExtra = new HashSet<>();
+            Set<IntentExtraValue> commonExtra = new HashSet<>();
 
-                Map<IntentExtraKey, Set<IntentExtraValue>> extraSetDifferentHashMap = new HashMap<>();
-
-
-                Set<String> commonCategory = new HashSet<>();
-
-                Map<String, Set<String>> categoryDifferentHashMap = new HashMap<>();
+            Map<IntentExtraKey, Set<IntentExtraValue>> extraSetDifferentHashMap = new HashMap<>();
 
 
-                for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : similarExtraKeyTypeMap.entrySet()) {
-                    if (entryExtra.getValue().size() <= 1) {
-                        commonExtra.add(entryExtra.getValue().iterator().next());
-                    } else {
-                        extraSetDifferentHashMap.put(entryExtra.getKey(), entryExtra.getValue());
-                    }
-                }
+            Set<String> commonCategory = new HashSet<>();
+
+            Map<String, Set<String>> categoryDifferentHashMap = new HashMap<>();
 
 
-                for (Map.Entry<String, Set<String>> entryCategory : categoryHashMap.entrySet()) {
-                    if (entryCategory.getValue().size() <= 1) {
-                        commonCategory.add(entryCategory.getValue().iterator().next());
-                    } else {
-                        categoryDifferentHashMap.put(entryCategory.getKey(), entryCategory.getValue());
-                    }
-                }
-
-                if (extraSetDifferentHashMap.size() == 0 && categoryDifferentHashMap.size() == 0) {
-                    Intent intent = new Intent();
-                    intent.action = action;
-                    intent.categories.addAll(commonCategory);
-                    for (IntentExtraValue intentExtraValue : commonExtra) {
-                        intent.extras.add(new Quartet<>("IntentKey", intentExtraValue.type, intentExtraValue.key, intentExtraValue.value));
-                    }
-
-                    returnIntentSet.add(intent);
+            for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : similarExtraKeyTypeMap.entrySet()) {
+                if (entryExtra.getValue().size() <= 1) {
+                    commonExtra.add(entryExtra.getValue().iterator().next());
                 } else {
-
-                    if (extraSetDifferentHashMap.size() == 0 && categoryDifferentHashMap.size() != 0) {
-                        for (Map.Entry<String, Set<String>> entryCategory : categoryDifferentHashMap.entrySet())
-
-                        {
-
-                            for (String oneCategory : entryCategory.getValue()) {
-
-                                Intent intent = new Intent();
-                                intent.action = action;
-                                intent.categories.addAll(commonCategory);
-                                for (IntentExtraValue intentExtraValue : commonExtra) {
-                                    intent.extras.add(new Quartet<>("IntentKey", intentExtraValue.type, intentExtraValue.key, intentExtraValue.value));
-                                }
-
-                                intent.categories.add(oneCategory);
-
-                                returnIntentSet.add(intent);
-
-                            }
-
-
-                        }
-                    }
-
-                    if (extraSetDifferentHashMap.size() != 0 && categoryDifferentHashMap.size() == 0)
-
-                    {
-                        for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : extraSetDifferentHashMap.entrySet()) {
-
-
-                            for (IntentExtraValue oneExtra : entryExtra.getValue()) {
-
-
-                                Intent intent = new Intent();
-                                intent.action = action;
-                                intent.categories.addAll(commonCategory);
-                                for (IntentExtraValue intentExtraValue : commonExtra) {
-                                    intent.extras.add(new Quartet<>("IntentKey", intentExtraValue.type, intentExtraValue.key, intentExtraValue.value));
-                                }
-
-
-                                intent.extras.add(new Quartet<>("IntentKey", oneExtra.type, oneExtra.key, oneExtra.value));
-
-                                returnIntentSet.add(intent);
-
-                            }
-                        }
-                    }
-
-                    if (extraSetDifferentHashMap.size() != 0 && categoryDifferentHashMap.size() != 0)
-
-                    {
-                        for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : extraSetDifferentHashMap.entrySet()) {
-
-
-                            for (IntentExtraValue oneExtra : entryExtra.getValue()) {
-
-                                for (Map.Entry<String, Set<String>> entryCategory : categoryDifferentHashMap.entrySet())
-
-                                {
-
-                                    for (String oneCategory : entryCategory.getValue()) {
-
-                                        Intent intent = new Intent();
-                                        intent.action = action;
-                                        intent.categories.addAll(commonCategory);
-                                        for (IntentExtraValue intentExtraValue : commonExtra) {
-                                            intent.extras.add(new Quartet<>("IntentKey", intentExtraValue.type, intentExtraValue.key, intentExtraValue.value));
-                                        }
-
-                                        intent.categories.add(oneCategory);
-                                        intent.extras.add(new Quartet<>("IntentKey", oneExtra.type, oneExtra.key, oneExtra.value));
-
-                                        returnIntentSet.add(intent);
-                                    }
-
-
-                                }
-
-                            }
-                        }
-
-
-                    }
+                    extraSetDifferentHashMap.put(entryExtra.getKey(), entryExtra.getValue());
                 }
-
-
             }
 
 
+            for (Map.Entry<String, Set<String>> entryCategory : categoryHashMap.entrySet()) {
+                if (entryCategory.getValue().size() <= 1) {
+                    commonCategory.add(entryCategory.getValue().iterator().next());
+                } else {
+                    categoryDifferentHashMap.put(entryCategory.getKey(), entryCategory.getValue());
+                }
+            }
+
+            if (extraSetDifferentHashMap.size() == 0 && categoryDifferentHashMap.size() == 0) {
+                Intent intent = new Intent();
+                intent.action = action;
+                intent.categories.addAll(commonCategory);
+                for (IntentExtraValue intentExtraValue : commonExtra) {
+
+                    intent.myExtras.add(new IntentExtraKey(intentExtraValue));
+                }
+
+                returnIntentSet.add(intent);
+            } else {
+
+                if (extraSetDifferentHashMap.size() == 0 && categoryDifferentHashMap.size() != 0) {
+                    for (Map.Entry<String, Set<String>> entryCategory : categoryDifferentHashMap.entrySet())
+
+                    {
+
+                        for (String oneCategory : entryCategory.getValue()) {
+
+                            Intent intent = new Intent();
+                            intent.action = action;
+                            intent.categories.addAll(commonCategory);
+                            for (IntentExtraValue intentExtraValue : commonExtra) {
+                                intent.myExtras.add(new IntentExtraKey(intentExtraValue));
+                            }
+
+                            intent.categories.add(oneCategory);
+
+                            returnIntentSet.add(intent);
+
+                        }
 
 
-        return returnIntentSet;
+                    }
+                }
+
+                if (extraSetDifferentHashMap.size() != 0 && categoryDifferentHashMap.size() == 0)
+
+                {
+                    for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : extraSetDifferentHashMap.entrySet()) {
 
 
+                        for (IntentExtraValue oneExtra : entryExtra.getValue()) {
+
+
+                            Intent intent = new Intent();
+                            intent.action = action;
+                            intent.categories.addAll(commonCategory);
+                            for (IntentExtraValue intentExtraValue : commonExtra) {
+                                intent.myExtras.add(new IntentExtraKey(intentExtraValue));
+                            }
+
+
+                            intent.myExtras.add(new IntentExtraKey(oneExtra));
+
+                            returnIntentSet.add(intent);
+
+                        }
+                    }
+                }
+
+                if (extraSetDifferentHashMap.size() != 0 && categoryDifferentHashMap.size() != 0)
+
+                {
+                    for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entryExtra : extraSetDifferentHashMap.entrySet()) {
+
+
+                        for (IntentExtraValue oneExtra : entryExtra.getValue()) {
+
+                            for (Map.Entry<String, Set<String>> entryCategory : categoryDifferentHashMap.entrySet())
+
+                            {
+
+                                for (String oneCategory : entryCategory.getValue()) {
+
+                                    Intent intent = new Intent();
+                                    intent.action = action;
+                                    intent.categories.addAll(commonCategory);
+                                    for (IntentExtraValue intentExtraValue : commonExtra) {
+                                        intent.myExtras.add(new IntentExtraKey(intentExtraValue));
+                                    }
+
+                                    intent.categories.add(oneCategory);
+                                    intent.myExtras.add(new IntentExtraKey(oneExtra));
+
+                                    returnIntentSet.add(intent);
+                                }
+
+
+                            }
+
+                        }
+                    }
+
+
+                }
+            }
+
+            allReturnIntentSet.addAll(returnIntentSet);
+            validateJoin(returnIntentSet, commonExtra, commonCategory);
+
+
+        }
+
+
+        return allReturnIntentSet;
+
+
+    }
+
+    private static void validateJoin(Set<Intent> returnIntentSet,  Set<IntentExtraValue> commonExtra, Set<String> commonCategory) {
+        for (Intent intent : returnIntentSet) {
+
+
+            if (!intent.categories.containsAll(commonCategory)) {
+                throw new RuntimeException("joinIntent error!");
+            }
+
+            Set<IntentExtraValue> intentExtraValueSet = new HashSet<>();
+            for (IntentExtraKey intentExtraKey : intent.myExtras) {
+                intentExtraValueSet.add(new IntentExtraValue(intentExtraKey));
+            }
+
+            if (!intentExtraValueSet.containsAll(commonExtra)) {
+                throw new RuntimeException("joinIntent error!");
+            }
+
+        }
     }
 
 
@@ -1035,55 +1034,55 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             intent.categories = hashSet;
 
 
-            intent.extras.addAll(intentParent.extras);
-            intent.extras.addAll(intentChildren.extras);
+            Set<IntentExtraValue> intentExtraValueSet = new HashSet<>();
+            for (IntentExtraKey intentExtraKeyChild : intentChildren.myExtras) {
+                intentExtraValueSet.add(new IntentExtraValue(intentExtraKeyChild));
+            }
+
+            for (IntentExtraKey intentExtraKeyParent : intentParent.myExtras) {
+                intentExtraValueSet.add(new IntentExtraValue(intentExtraKeyParent));
+            }
 
             HashSet<IntentExtraKey> hashSetIntentExtraKey = new HashSet();//存储最后的结果
 
-            for (Quartet<String, String, String, String> oneExtra : intent.extras) {
-                if (oneExtra.getValue0().equals("IntentKey")) {
-                    IntentExtraKey intentExtraKey = new IntentExtraKey(oneExtra.getValue2(), oneExtra.getValue1(), oneExtra.getValue3());
-                    if (hashSetIntentExtraKey.contains(intentExtraKey)) {// key和type相同则true
-                        for (IntentExtraKey oneIntentExtraKey : hashSetIntentExtraKey) {
-                            if (oneIntentExtraKey.equals(intentExtraKey)) {
+            for (IntentExtraValue oneExtra : intentExtraValueSet) {
 
-                                String value = null;
-                                if (intentExtraKey.type.equals("java.lang.String")) {
-                                    value = jointTwoStringValue(intentExtraKey.value.trim(), oneIntentExtraKey.value.trim());
-                                } else if (intentExtraKey.type.equals("long") || intentExtraKey.type.equals("short") || intentExtraKey.type.equals("int") || intentExtraKey.type.equals("float") || intentExtraKey.type.equals("double") || intentExtraKey.type.equals("byte")) {
-                                    value = intentExtraKey.value + "##" + oneIntentExtraKey.value;//
-                                } else//其他类型
-                                {
-                                    if (intentExtraKey.value.equals(oneIntentExtraKey.value)) {
-                                        value = intentExtraKey.value;
-                                    }
+                IntentExtraKey intentExtraKey = new IntentExtraKey(oneExtra);
+                if (hashSetIntentExtraKey.contains(intentExtraKey)) {// key和type相同则true
+                    for (IntentExtraKey oneIntentExtraKey : hashSetIntentExtraKey) {
+                        if (oneIntentExtraKey.equals(intentExtraKey)) {
+
+                            String value = null;
+                            if (intentExtraKey.type.equals("java.lang.String")) {
+                                value = jointTwoStringValue(intentExtraKey.value.trim(), oneIntentExtraKey.value.trim());
+                            } else if (intentExtraKey.type.equals("long") || intentExtraKey.type.equals("short") || intentExtraKey.type.equals("int") || intentExtraKey.type.equals("float") || intentExtraKey.type.equals("double") || intentExtraKey.type.equals("byte")) {
+                                value = intentExtraKey.value + "##" + oneIntentExtraKey.value;//
+                            } else//其他类型
+                            {
+                                if (intentExtraKey.value.equals(oneIntentExtraKey.value)) {
+                                    value = intentExtraKey.value;
                                 }
-
-
-                                if (value == null)//存在两个值冲突
-                                {
-                                    return null;
-                                }
-
-                                oneIntentExtraKey.value = value;// assign new value
-
-
-
-
                             }
+
+
+                            if (value == null)//存在两个值冲突
+                            {
+                                return null;
+                            }
+
+                            oneIntentExtraKey.value = value;// assign new value
+
+
                         }
-                    } else {
-                        hashSetIntentExtraKey.add(intentExtraKey);
                     }
+                } else {
+                    hashSetIntentExtraKey.add(intentExtraKey);
                 }
+
             }
 
 
-            Set<Quartet<String, String, String, String>> intentExtrasQuartet = new HashSet<>();
-            for (IntentExtraKey intentExtraKey : hashSetIntentExtraKey) {
-                intentExtrasQuartet.add(new Quartet<>("IntentKey", intentExtraKey.type, intentExtraKey.key, intentExtraKey.value));
-            }
-            intent.extras = intentExtrasQuartet;
+            intent.myExtras = hashSetIntentExtraKey;
 
             return intent;
 
@@ -1427,7 +1426,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
 
         Intent genIntent = new Intent();
-        genIntent.extras = new LinkedHashSet<>(extraData);
+
+
+        for (Quartet<String, String, String, String> oneExtra : extraData) {
+            if (oneExtra.getValue0().equals("IntentKey")) {
+                IntentExtraKey intentExtraKey = new IntentExtraKey(oneExtra.getValue2(), oneExtra.getValue1(), oneExtra.getValue3());
+                genIntent.myExtras.add(intentExtraKey);
+            } else {
+                throw new RuntimeException("BundleKey do not handle!");
+            }
+
+        }
         genIntent.action = action;
         genIntent.categories = categories;
 
@@ -4040,7 +4049,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             intentConditionTransform.run();
 
 
-
                             saveIntent(intentConditionTransform.allIntentConditionOfOneApp, file.getAbsolutePath());
                             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "分析结束" + "\n");
                             writeFileHasBeenProcessedApp.writeStr(file.getAbsolutePath() + "\n");
@@ -4094,7 +4102,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
     private static void saveIntent(HashSet<Intent> allIntentConditionOfOneApp, String appPath) {
-
 
 
         WriteFile writeFileSingleIntent = new WriteFile("AnalysisAPKIntent/intent_file/" + new File(appPath).getName() + ".txt", false);
