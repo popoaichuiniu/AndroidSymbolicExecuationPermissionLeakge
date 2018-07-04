@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
 
-    private static boolean exeModelTest = false;
+    private static boolean exeModelTest = true;
 
     private boolean pathLimitEnabled = true;
 
@@ -178,7 +178,14 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", false);
         for (IntentUnit intentUnit : ultiIntentSet) {
-            writeFile.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" + intentUnit.unit.getTag("BytecodeOffsetTag") + "\n");
+            Stmt stmt = (Stmt) intentUnit.unit;
+            InvokeExpr invokeExpr = stmt.getInvokeExpr();
+            if (invokeExpr == null) {
+                throw new RuntimeException("intent unit do not contain invoke!");
+            } else {
+                writeFile.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" + intentUnit.unit.getTag("BytecodeOffsetTag") + "%%%" + invokeExpr.getMethod().getBytecodeSignature() + "\n");
+            }
+
         }
 
 
@@ -406,7 +413,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             if (intentSet != null) {
                 for (Intent intent : intentSet) {
-                    intent.targetComponent = sootMethodTgt.getBytecodeSignature()+"##"+sootMethodTgt.getDeclaringClass().getName();
+                    intent.targetComponent = sootMethodTgt.getBytecodeSignature() + "##" + sootMethodTgt.getDeclaringClass().getName();
                     ultiIntentSet.add(new IntentUnit(intent, myCallGraph.targetUnit));
 
                 }
@@ -972,7 +979,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     }
 
-    private static void validateJoin(Set<Intent> returnIntentSet,  Set<IntentExtraValue> commonExtra, Set<String> commonCategory) {
+    private static void validateJoin(Set<Intent> returnIntentSet, Set<IntentExtraValue> commonExtra, Set<String> commonCategory) {
         for (Intent intent : returnIntentSet) {
 
 
@@ -1193,7 +1200,29 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     protected Pair<Intent, Boolean> runSolvingPhase(SootMethod method, List<Unit> currPath, Set<String> interPathCond, Set<String> interDecls) {
 
-        Pair<Intent, Boolean> soln = findSolutionForPath(interPathCond, method, interDecls, currPath);
+        Set<String> interPathCondNew=new HashSet<>();
+
+        Set<String> interDeclsNew=new HashSet<>();
+        for(String oneInterPathCond:interPathCond)
+        {
+            String [] oneCondArray=oneInterPathCond.split("\n");
+            for(String oneCond:oneCondArray)
+            {
+                interPathCondNew.add(oneCond);
+            }
+        }
+        for(String oneInterDecl:interDecls)
+        {
+            String [] oneDeclArray=oneInterDecl.split("\n");
+            for(String oneDecl:oneDeclArray)
+            {
+                interDeclsNew.add(oneDecl);
+            }
+        }
+
+
+
+        Pair<Intent, Boolean> soln = findSolutionForPath(interPathCondNew, method, interDeclsNew, currPath);
         boolean feasible = soln.getValue1();
         Intent genIntent = soln.getValue0();
 
@@ -1203,10 +1232,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         } else {
             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info("路径不可行");
             String content = "";
-            for (String d : interDecls) {
+            for (String d : interDeclsNew) {
                 content += d + "\n";
             }
-            for (String c : interPathCond) {
+            for (String c : interPathCondNew) {
                 content += c + "\n";
             }
 
@@ -1313,7 +1342,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                         String extraFrom = extraFromMap.get(symbol);
 
                         if (extraFrom != null) {
-                            if (extraFrom.contains("Bundle"))//extraData from bundle
+                            if (extraFrom.contains("android.os.BaseBundle") || extraFrom.contains("android.os.Bundle"))//extraData from bundle
                             {
                                 Local local = symbolLocalMap.get(symbol);
                                 if (local != null) {
@@ -1321,11 +1350,12 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                     tempBundleExtraDataMap.put(extraFrom, quartet);
                                 }
 
-                            } else if (extraFrom.contains("Intent"))//extraData from Intent
+                            } else if (extraFrom.contains("android.content.Intent"))//extraData from Intent
                             {
                                 Local local = symbolLocalMap.get(symbol);
                                 if (local != null) {
                                     if (local.getType().toString().equals("android.os.Bundle"))//这个intent 的extra是bundle
+
                                     {
                                         Quartet<String, String, String, String> quartet = new Quartet<>("IntentKey", local.getType().toString(), key, symbol);
                                         tempIntentExtraData.add(quartet);
@@ -1450,40 +1480,6 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
 
-    public Quartet<String, String, String, String> generateDatum(String symbol, String generatedValue, Map<String, String> extraLocalKeys) {
-
-        Quartet<String, String, String, String> extraDatum = null;//
-
-
-        Local local = symbolLocalMap.get(symbol);
-        String key = extraLocalKeys.get(symbol);
-
-
-        if (local != null && key != null) {
-
-
-            String sourceOfExtra = extraFromMap.get(symbol);
-            if (sourceOfExtra != null) {
-                Local sourceOfExtraLocal = symbolLocalMap.get(sourceOfExtra);
-
-                if (sourceOfExtraLocal != null) {
-                    if (sourceOfExtraLocal.getType().toString().equals("android.content.Intent")) {
-                        extraDatum = new Quartet<String, String, String, String>("intentKey", local.getType().toString(), key, generatedValue.toString().replaceAll("^\"|\"$", ""));
-                    } else if (sourceOfExtraLocal.getType().toString().equals("android.os.Bundle")) {
-                        extraDatum = new Quartet<String, String, String, String>("bundleKey_" + symbolDefUnitMap.get(sourceOfExtra), local.getType().toString(), key, generatedValue.toString().replaceAll("^\"|\"$", ""));
-
-                    }
-                }
-
-            }
-
-
-        } else {
-            extraDatum = null;
-        }
-        return extraDatum;
-    }
-
     Pair<Map<String, String>, Boolean> returnSatisfyingModel(Set<String> decls, Set<String> pathCond) throws Z3Exception {
         return returnSatisfyingModelForZ3(decls, pathCond);
     }
@@ -1500,6 +1496,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     "(declare-fun containsKey (String String) Bool)\n" +
                     "(declare-fun containsKey (Int String) Bool)\n" +
                     "(declare-fun containsKey (Real String) Bool)\n" +
+                    "(declare-fun containsKey (Bool String) Bool)\n" +
 
                     "(declare-fun getAction (Object) String)\n" +
 
@@ -1507,18 +1504,21 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     "(declare-fun fromIntent (String) Object)\n" +
                     "(declare-fun fromIntent (Int) Object)\n" +
                     "(declare-fun fromIntent (Real) Object)\n" +
+                    "(declare-fun fromIntent (Bool) Object)\n" +
 
 
                     "(declare-fun fromBundle (Object) Object)\n" +
                     "(declare-fun fromBundle (String) Object)\n" +
                     "(declare-fun fromBundle (Int) Object)\n" +
                     "(declare-fun fromBundle (Real) Object)\n" +
+                    "(declare-fun fromBundle (Bool) Object)\n" +
 
                     "(declare-datatypes () ((ParamRef (mk-paramref (index Int) (type String) (method String)))))\n" +
                     "(declare-fun hasParamRef (Object) ParamRef)\n" +
                     "(declare-fun hasParamRef (String) ParamRef)\n" +
                     "(declare-fun hasParamRef (Int) ParamRef)\n" +
                     "(declare-fun hasParamRef (Real) ParamRef)\n" +
+                    "(declare-fun hasParamRef (Bool) ParamRef)\n" +
 
                     "(declare-fun isNull (String) Bool)\n" +
                     "(declare-fun isNull (Object) Bool)\n" +
@@ -1949,7 +1949,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                 }
             }
             if (Pattern.matches("get.*", ie.getMethod().getName())) {//defStmt:xxx=ie.get.*()  ie:android.os.Bundle
-                if (ie.getMethod().getDeclaringClass().toString().equals("android.os.Bundle")) {
+                if (ie.getMethod().getDeclaringClass().toString().equals("android.os.Bundle") || ie.getMethod().getDeclaringClass().toString().equals("android.os.BaseBundle")) {
                     Pair<Set<String>, Set<String>> exprPair = buildGetBundleData(defStmt, defs, ie, method, currPath);
                     currDecls.addAll(exprPair.getValue0());
                     currPathCond.addAll(exprPair.getValue1());
@@ -2305,6 +2305,40 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
+    private Value opVal1Org = null;
+    private Value opVal2Org = null;
+    private String symbolOrg = null;
+
+    private boolean ifConditionValue() {
+        if (opVal1Org.getType().toString().equals("boolean") && opVal2Org.getType().toString().equals("int")) {
+            if (symbolOrg.trim().equals("==")) {
+
+                if (opVal2Org.toString().equals("0")) {
+                    return true;
+                } else if (opVal2Org.toString().equals("1")) {
+                    return false;
+                }
+                throw new RuntimeException("use this method error, not 0 or 1 ==");
+
+
+            } else if (symbolOrg.trim().equals("!=")) {
+
+                if (opVal2Org.toString().equals("0")) {
+                    return false;
+                } else if (opVal2Org.toString().equals("1")) {
+                    return true;
+                }
+                throw new RuntimeException("use this method error, not 0 or 1  !=");
+
+
+            }
+        }
+
+        throw new RuntimeException("use this method error");
+
+
+    }
+
     private Set<String> handleIfStmt(IfStmt ifStmt, List<Unit> path, SootMethod sootMethod, SimpleLocalDefs defs, Set<String> decls, Unit succUnit) {
 
         //只用生成关于if语句的表达式，intent的表达式都在intent方法里生成了
@@ -2325,13 +2359,20 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         Value conditionRight = condition.getOp2();
 
 
+        opVal1Org = conditionLeft;
+        opVal2Org = conditionRight;
+        symbolOrg = condition.getSymbol();
+
+
         Value opVal1 = conditionLeft;
 
         Value opVal2 = conditionRight;
 
 
-        Value opVal1Org = conditionLeft;
-        Value opVal2Org = conditionRight;
+        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/if.txt", true);
+        writeFile.writeStr(conditionLeft.getType().toString() + "***" + condition + "$$$" + conditionRight.getType().toString() + "###" + ifStmt + "\n");
+        writeFile.close();
+
 
         boolean generateCondExpr = true;
 
@@ -2618,14 +2659,32 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         String branchSensitiveSymbol = null;
         if (isFallThrough) {
             if (opVal1Org.getType() instanceof BooleanType) {
-                branchSensitiveSymbol = condition.getSymbol();
+
+                if(ifConditionValue())
+                {
+                    branchSensitiveSymbol = "==";
+                }
+                else
+                {
+                    branchSensitiveSymbol = negateSymbol("==");
+                }
+
             } else {
                 branchSensitiveSymbol = negateSymbol(condition.getSymbol());
             }
         } else {
             if (opVal1Org.getType() instanceof BooleanType) {
-                branchSensitiveSymbol = negateSymbol(condition.getSymbol());
-            } else {
+
+                if(ifConditionValue())
+                {
+                    branchSensitiveSymbol = negateSymbol("==");
+                }
+                else
+                {
+                    branchSensitiveSymbol = "==";
+                }
+
+            } else {//byte type  do not need use ifConditionValue()
                 branchSensitiveSymbol = condition.getSymbol();
             }
         }
@@ -2763,7 +2822,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
     }
 
-    private String buildZ3CondExpr(String opExpr1, String opExpr2, String branchSensitiveSymbol) {
+    private String buildZ3CondExpr(String opExpr1, String opExpr2, String branchSensitiveSymbol) {//for string  if(== true false) error
         String returnExpr;
         String condExpr = null;
 
@@ -3064,10 +3123,25 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                                             String newAssert = null;
                                             if (isFallThrough) { // intent contains the category
-                                                newAssert = "(assert (exists ((index Int)) (= (select cats index) \"" + category + "\")))";
+                                                if(ifConditionValue())
+                                                {
+                                                    newAssert = "(assert (exists ((index Int)) (= (select cats index) \"" + category + "\")))";
+                                                }
+                                                else
+                                                {
+                                                    newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
+                                                }
+
                                                 //addIntentCategoryForPath(currPath,category);
                                             } else { // intent does not contain the category
-                                                newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
+                                                if(ifConditionValue())
+                                                {
+                                                    newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
+                                                }
+                                                else
+                                                {
+                                                    newAssert = "(assert (exists ((index Int)) (= (select cats index) \"" + category + "\")))";
+                                                }
                                             }
                                             leftVal = new Quartet<Value, String, String, Unit>(defStmt.getLeftOp(), null, newAssert, defStmt);
                                         }
@@ -3187,7 +3261,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                     if (isFallThrough) { // then intent contains the key
 
-                        if (conditionExpr.getSymbol().toString().equals(" == ")) {
+                        if (ifConditionValue()) {
                             newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
                         } else {
                             newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
@@ -3196,7 +3270,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                         //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
                     } else { // the intent does NOT contain the key
-                        if (conditionExpr.getSymbol().toString().equals(" == ")) {
+                        if (ifConditionValue()) {
                             newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
                         } else {
                             newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";
@@ -3239,7 +3313,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     if (defStmt.containsInvokeExpr()) {
                         if (defStmt.getInvokeExpr() instanceof InstanceInvokeExpr) {
                             InstanceInvokeExpr ie = (InstanceInvokeExpr) defStmt.getInvokeExpr();
-                            if (ie.getMethod().getDeclaringClass().getName().equals("android.os.Bundle")) {
+                            if (ie.getMethod().getDeclaringClass().getName().equals("android.os.Bundle") || ie.getMethod().getDeclaringClass().getName().equals("android.os.BaseBundle")) {
                                 if (ie.getMethod().getName().equals("containsKey")) {
                                     Value keyVal = ie.getArg(0);
                                     if (keyVal instanceof StringConstant) {//直接没有考虑key是否是个变量的情况--------------------------------------
@@ -3288,7 +3362,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                         boolean isFallThrough = isFallThrough(inUnit, succ, (JimpleBody) method.getActiveBody());
                                                                         ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
                                                                         if (isFallThrough) { // then intent contains the key   //
-                                                                            if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                            if (ifConditionValue()) {
                                                                                 newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") true))";//getExtras是将intent的extra data converted into bundle ,so assert is about intent
                                                                             } else {
                                                                                 newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
@@ -3296,7 +3370,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
                                                                         } else { // the intent does NOT contain the key
-                                                                            if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                            if (ifConditionValue()) {
                                                                                 newAssert += "\n(assert (= (containsKey " + intentLocalSymbol + " \"" + keyString + "\") false))";
 
                                                                             } else {
@@ -3325,7 +3399,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                 boolean isFallThrough = isFallThrough(inUnit, succ, (JimpleBody) method.getActiveBody());
                                                                 ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
                                                                 if (isFallThrough) { // then intent contains the key
-                                                                    if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                    if (ifConditionValue()) {
                                                                         newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") true))";
                                                                     } else {
                                                                         newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") false))";
@@ -3334,7 +3408,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                                                     //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
                                                                 } else { // the intent does NOT contain the key
 
-                                                                    if (conditionExpr.getSymbol().equals(" == ")) {
+                                                                    if (ifConditionValue()) {
                                                                         newAssert += "\n(assert (= (containsKey " + bundleLocalSymbol + " \"" + keyString + "\") false))";
                                                                     } else {
 
@@ -3372,7 +3446,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                                     ConditionExpr conditionExpr = (ConditionExpr) inUnit.getCondition();
                                     if (isFallThrough) { // then intent contains the key
 
-                                        if (conditionExpr.getSymbol().equals(" == ")) {
+                                        if (ifConditionValue()) {
                                             newAssert = "(assert (=" + booleanValueSymbol + " true))";
                                         } else {
                                             newAssert = "(assert (=" + booleanValueSymbol + " false))";
@@ -3381,7 +3455,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                                         //addIntentExtraForPath(currPath,keyString,keyVal.getType().toString());
                                     } else { // the intent does NOT contain the key
-                                        if (conditionExpr.getSymbol().equals(" == ")) {
+                                        if (ifConditionValue()) {
                                             newAssert = "(assert (=" + booleanValueSymbol + " false))";
 
                                         } else {
