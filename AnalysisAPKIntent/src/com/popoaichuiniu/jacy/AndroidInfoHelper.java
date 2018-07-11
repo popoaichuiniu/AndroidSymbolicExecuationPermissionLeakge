@@ -24,9 +24,9 @@ public class AndroidInfoHelper {
 
 
 	private static Map<String, List<String>> permissionMethods= null;
-	private static Map<String, List<String>> permissionAndroguardMethods= null;
+	private static Map<String, Set<String>> permissionAndroguardMethods= null;
 
-	public static Map<String, List<String>> getPermissionAndroguardMethods() {
+	public static Map<String, Set<String>> getPermissionAndroguardMethods() {
 		return permissionAndroguardMethods;
 	}
 
@@ -384,22 +384,22 @@ public class AndroidInfoHelper {
 				//System.out.println(key);
 				//System.out.println(jsonObject.getJSONArray(key));
 				JSONArray permissionArray= jsonObject.getJSONArray(key);
-				List<String> permissionList=new ArrayList<>();
+				Set<String> permissionSet=new HashSet<>();
 				if(permissionArray!=null)
 				{
 					
 					for(Iterator<Object> permissionIterator= permissionArray.iterator();permissionIterator.hasNext();)
 					{
-						permissionList.add((String)permissionIterator.next());
+						permissionSet.add((String)permissionIterator.next());
 					}
 				}				
 				String modifiedKey=convertAndroGuardMethodSignatureToSoot(key);
 				System.out.println(modifiedKey);
-				System.out.println(permissionList);
-				permissionAndroguardMethods.put(modifiedKey, permissionList);
+				System.out.println(permissionSet);
+				permissionAndroguardMethods.put(modifiedKey, permissionSet);
 				
 				//*********************permissionDangerousAndSpecialMethods2*************************
-				for(String permission:permissionList)
+				for(String permission:permissionSet)
 				{
 					if(dangerousAndSpecialPermissions.contains(permission))
 					{

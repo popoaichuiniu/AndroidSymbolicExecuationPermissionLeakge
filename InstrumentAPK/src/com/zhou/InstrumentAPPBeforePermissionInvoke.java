@@ -3,9 +3,9 @@ package com.zhou;
 import java.io.*;
 import java.util.*;
 
-import com.popoaichuiniu.jacy.AndroidInfoHelper;
+import com.popoaichuiniu.util.Config;
 import com.popoaichuiniu.util.Util;
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+import com.popoaichuiniu.util.WriteFile;
 import org.javatuples.Pair;
 import soot.Body;
 import soot.BodyTransformer;
@@ -17,14 +17,12 @@ import soot.SootMethod;
 import soot.Transform;
 import soot.Unit;
 import soot.Value;
-import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
 import soot.jimple.Jimple;
 import soot.jimple.StaticInvokeExpr;
 import soot.jimple.StringConstant;
 import soot.options.Options;
 import soot.tagkit.BytecodeOffsetTag;
-import soot.tagkit.Tag;
 
 
 class InstrumentUnit
@@ -43,6 +41,9 @@ class InstrumentUnit
 }
 
 public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
+
+	private static String appDir=null;
+	private static boolean isTest=Config.isTest;
 
 	@Override
 	protected void internalTransform(Body b, String phaseName, Map<String, String> options) {
@@ -96,13 +97,15 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 	 * platforms是SDK中platforms的路径	 
 	 */
 	//static String defaultAppPath = "/home/lab418/AndroidStudioProjects/TestIntrument3/app/build/outputs/apk/debug/app-debug.apk";
-	private String appPath="./InstrumentAPK/sms2.apk";
+	private String appPath=null;
 	//private String platforms = "/home/zms/platforms";//设置最低版本为android5.0，app就插桩失败  签名的jarsigner不行了？soot太老了？
 
 	private Set<Pair<Integer, String>> targets = null;
 
-	private static BufferedWriter bufferedWriter=null;
+	private  static BufferedWriter bufferedWriter=null;
 	private static BufferedWriter bufferedWriter_app_has_Instrumented=null;
+
+	private static WriteFile writeFileAppInstrumentException =null;
 
 	private static volatile int inStrumentCount=0;
 
@@ -136,6 +139,8 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 			e.printStackTrace();
 		}
 
+
+
 	}
 
 	private   boolean unitNeedAnalysis(Unit unit, SootMethod sootMethod) {
@@ -154,55 +159,121 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 	}
 	public static void main(String[] args) {
 
+		String[] instrumentArgs=new String[3];
 
 		try
-		{bufferedWriter_app_has_Instrumented = new BufferedWriter(new FileWriter("app_has_Instrumented.txt" ));
+		{bufferedWriter_app_has_Instrumented = new BufferedWriter(new FileWriter("InstrumentAPK/instrument_log/app_has_Instrumented.txt" ));
 		}
 		catch (IOException e)
 		{
 			e.printStackTrace();
 		}
 
-
-		File dir=new File("/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/down_fdroid_app_from_androzoo/f-droid-app");
-		for(File file:dir.listFiles()) {
-			if (file.getName().endsWith(".apk")) {
-				File unitedAnalysis = new File(file.getAbsolutePath() + "_UnitsNeedAnalysis.txt");
-				if (unitedAnalysis.exists()) {
-
-					Thread childThread = new Thread(new Runnable() {
-
-						@Override
-						public void run() {
-							// TODO Auto-generated method stub
-
-							Long startTime = System.nanoTime();
-							args[0]=file.getAbsolutePath();
-							args[1]="/home/zms/platforms";
-							args[2]=unitedAnalysis.getAbsolutePath();
-
-							soot.G.reset();
-							SingleAPPAnalysis(args);
-
-							Long stopTime = System.nanoTime();
-							System.out.println("运行时间:" + ((stopTime - startTime) / 1000 / 1000 / 1000 / 60) + "分钟");
-						}
-					});
-					childThread.start();
-
-					try {
-						childThread.join();
-					} catch (InterruptedException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
+		if(isTest)
+		{
+			appDir=Config.defaultAppPath;
+		}
+		else
+		{
+			appDir=Config.selectAPP;
+		}
 
 
+		File appDirFile=new File(appDir);
 
+		if(appDirFile.isDirectory())
+		{
+			File logFileDir=new File("InstrumentAPK/instrument_log/"+appDirFile.getName());
+			if(!logFileDir.exists())
+			{
+				try {
+					logFileDir.createNewFile();
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
+			}
+			if(logFileDir.exists())
+			{
+				writeFileAppInstrumentException =new WriteFile("InstrumentAPK/instrument_log/"+appDirFile.getName()+"/"+"appInstrumentException.log",false);
 
 			}
+			else
+			{
+				return;
+			}
 		}
+		else
+		{
+			writeFileAppInstrumentException =new WriteFile("InstrumentAPK/instrument_log/"+appDirFile.getName()+"_instrumentException.log",false);
+		}
+
+
+
+
+
+
+
+
+
+
+		if(appDirFile.isDirectory())
+		{
+			for(File file:appDirFile.listFiles()) {
+				if (file.getName().endsWith(".apk")) {
+					File unitedAnalysis = new File(file.getAbsolutePath() + "_UnitsNeedAnalysis.txt");
+					if (unitedAnalysis.exists()) {
+
+						Thread childThread = new Thread(new Runnable() {
+
+							@Override
+							public void run() {
+								// TODO Auto-generated method stub
+
+								Long startTime = System.nanoTime();
+								instrumentArgs[0]=file.getAbsolutePath();
+								instrumentArgs[1]="/home/zms/platforms";
+								instrumentArgs[2]=unitedAnalysis.getAbsolutePath();
+
+								soot.G.reset();
+								try {
+									singleAPPAnalysis(instrumentArgs);
+								}
+								catch (RuntimeException e)
+								{
+									writeFileAppInstrumentException.writeStr(e.getMessage()+" "+args[0]+"\n");
+								}
+
+
+								Long stopTime = System.nanoTime();
+								System.out.println("运行时间:" + ((stopTime - startTime) / 1000 / 1000 / 1000 / 60) + "分钟");
+							}
+						});
+						childThread.start();
+
+						try {
+							childThread.join();
+						} catch (InterruptedException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+
+
+
+					}
+
+				}
+			}
+		}
+		else {
+			File unitedAnalysis = new File(appDirFile.getAbsolutePath() + "_UnitsNeedAnalysis.txt");
+			instrumentArgs[0]=appDirFile.getAbsolutePath();
+			instrumentArgs[1]="/home/zms/platforms";
+			instrumentArgs[2]=unitedAnalysis.getAbsolutePath();
+
+			soot.G.reset();
+			singleAPPAnalysis(instrumentArgs);
+		}
+
 
 		try {
 			bufferedWriter_app_has_Instrumented.close();
@@ -213,11 +284,23 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 	}
 
-	private static void SingleAPPAnalysis(String[] args) {
+	private static void singleAPPAnalysis(String[] args) {
+
+		String outputDir=new File(args[0]).getParentFile().getAbsolutePath()+"/"+"instrumented";
+		File outputDirFile=new File(outputDir);
+		if(!outputDirFile.exists())
+		{ outputDirFile.mkdir();
+
+		}
+		if(!outputDirFile.exists())
+		{
+			throw new RuntimeException("instrumented目录创建失败！");
+		}
 		String sootArgs[] = {
 				"-process-dir",args[0],
 				"-android-jars",args[1],
 				"-allow-phantom-refs",
+				"-output-dir",outputDir,
 
 
 		};
@@ -258,21 +341,23 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 		}
 
 
+		try {
+			bufferedWriter_app_has_Instrumented.write(args[0]+"\n");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 
 		if(targetCount!=inStrumentCount)
 		{
+
+
+
+
 			throw  new RuntimeException("插桩数量和需要插桩的数量不匹配！");
 		}
-		else
-		{
 
-			try {
-				bufferedWriter_app_has_Instrumented.write(args[0]+"\n");
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
 	}
 
 	public  void addInstrumentAfterStatement(Body b, Unit point,String message){

@@ -673,4 +673,22 @@ public class Util {
     }
 
 
+    public static Map<String,Set<String>> getPermissionAPIMap(Map<String,Set<String>> sootMethodPermissionMap) {
+
+        Map<String,Set<String>> permissionAPIMap=new HashMap<>();
+        for(Map.Entry<String,Set<String>> entry:sootMethodPermissionMap.entrySet())
+        {
+            for(String permission:entry.getValue())
+            {
+                Set<String> apiSet=permissionAPIMap.get(permission);
+                if(apiSet==null)
+                {
+                    apiSet=new HashSet<>();
+                }
+                apiSet.add(entry.getKey());
+                permissionAPIMap.put(permission,apiSet);
+            }
+        }
+        return permissionAPIMap;
+    }
 }

@@ -112,7 +112,9 @@ def  analysisAPKDir(apkDir):#
 
     if(not os.path.isdir(apkDir)):
         if(apkDir.endswith("_signed_zipalign.apk")):
-            intent_file=apkDir+"_"+"intentInfo.txt"
+            parent_path = os.path.dirname(apkDir)
+            apk_name=os.path.basename(apkDir)
+            intent_file=parent_path+"/"+apk_name.replace("_signed_zipalign","")+"_"+"intentInfo.txt"
             if (os.path.exists(intent_file)):
                 yield apkDir, intent_file
             else:
@@ -126,7 +128,7 @@ def  analysisAPKDir(apkDir):#
             path=apkDir+"/"+file
             if(str(path).endswith("_signed_zipalign.apk")):
                 #intent_file=path+"_"+"intent_info.txt"#-------------------------------
-                intent_file=path+"_"+"intentInfo.txt"#---------------------------
+                intent_file=apkDir+"/../"+file.replace("_signed_zipalign","")+"_"+"intentInfo.txt"#---------------------------
                 if(os.path.exists(intent_file)):
                     yield path,intent_file
                 else:
@@ -221,7 +223,8 @@ if __name__ == '__main__':
         print("等待adb工作正常")
         time.sleep(3)
 
-    apkDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput"
+    #apkDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput"
+    apkDir='/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/instrumented'
     for apkPath,intent_file in analysisAPKDir(apkDir):
         flag_test=test(apkPath,intent_file)
         if(flag_test):
@@ -231,7 +234,7 @@ if __name__ == '__main__':
             print(apkPath+"测试失败！")
             fail_apk_list.write(apkPath+"\n")
 
-        uninstall_app(apkPath)
+        #uninstall_app(apkPath)
     success_apk_list.close()
     fail_apk_list.close()
 

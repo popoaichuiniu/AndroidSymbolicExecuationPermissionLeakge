@@ -12,6 +12,7 @@ import org.javatuples.Triplet;
 
 import soot.*;
 import soot.jimple.*;
+import soot.jimple.infoflow.android.axml.AXmlNode;
 import soot.jimple.internal.AbstractJimpleIntBinopExpr;
 import soot.jimple.internal.JCastExpr;
 import soot.jimple.internal.JVirtualInvokeExpr;
@@ -34,11 +35,12 @@ import java.util.regex.Pattern;
 
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
 
-    private static boolean exeModelTest = true;
+    private static boolean exeModelTest = false;
+
 
     private boolean pathLimitEnabled = true;
 
-    private int enterBranchLimit = 20;//
+    private int enterBranchLimit = 13;//
 
     private boolean hasReachBranchLimit = false;
 
@@ -64,6 +66,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
 
     private Set<IntentUnit> ultiIntentSet = new HashSet<>();
+
+
+    String packageName = null;
+    Map<String, AXmlNode> eas = null;
 
 
     /**
@@ -148,6 +154,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         AndroidCallGraphHelper androidCallGraphHelper = new AndroidCallGraphHelper(appPath, Config.androidJar);
         AndroidInfoHelper androidInfoHelper = new AndroidInfoHelper(appPath);
+        packageName = androidInfoHelper.getPackageName(appPath);
+        eas = androidInfoHelper.getEAs();
         List<SootMethod> ea_entryPoints = Util.getEA_EntryPoints(androidCallGraphHelper, androidInfoHelper);
         List<SootMethod> roMethods = Util.getMethodsInReverseTopologicalOrder(ea_entryPoints, androidCallGraphHelper.getCg());
         roMethods.add(androidCallGraphHelper.getEntryPoint());
@@ -176,22 +184,182 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         }
 
-        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", false);
+        WriteFile writeFile_intent_ulti = new WriteFile("AnalysisAPKIntent/intent_ulti/" + new File(appPath).getName() + ".txt", false);
+
+
+        ultiIntentSet = preProcess(ultiIntentSet);//将intent的num值和string处理
+
+        List<IntentInfo> intentInfoList = new ArrayList<>();
         for (IntentUnit intentUnit : ultiIntentSet) {
             Stmt stmt = (Stmt) intentUnit.unit;
             InvokeExpr invokeExpr = stmt.getInvokeExpr();
             if (invokeExpr == null) {
                 throw new RuntimeException("intent unit do not contain invoke!");
             } else {
-                writeFile.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" + intentUnit.unit.getTag("BytecodeOffsetTag") + "%%%" + invokeExpr.getMethod().getBytecodeSignature() + "\n");
+
+                intentInfoList.add(getIntentInfo(intentUnit));
+                writeFile_intent_ulti.writeStr(intentUnit.intent + "%%%" + intentUnit.unit + "&*" + intentUnit.unit.getTag("BytecodeOffsetTag") + "%%%" + invokeExpr.getMethod().getBytecodeSignature() + "\n");
             }
 
         }
 
+        IntentInfoFileGenerate.generateIntentInfoFile(appPath,intentInfoList);
 
-        writeFile.close();
 
 
+
+        writeFile_intent_ulti.close();
+
+
+    }
+
+    public static Set<IntentUnit> preProcess(Set<IntentUnit> ultiIntentSet) {
+        Set<IntentUnit> newIntentUnitSet = new HashSet<>();
+        for (IntentUnit intentUnit : ultiIntentSet) {
+
+
+            //extra
+            Set<IntentExtraKey> intentExtraKeySet = intentUnit.intent.myExtras;
+            List<Set<IntentExtraKey>> intentExtraList = new ArrayList<>();
+            if (intentExtraKeySet != null && intentExtraKeySet.size() != 0) {
+                Map<IntentExtraKey, Set<IntentExtraValue>> map = new HashMap<>();
+                for (IntentExtraKey intentExtraKey : intentExtraKeySet) {
+
+                    if (isNumberType(intentExtraKey)) {
+                        Set<IntentExtraValue> numValueSet = new HashSet<>();
+                        String numbers[] = intentExtraKey.value.split("##");
+                        for (String num : numbers) {
+                            numValueSet.add(new IntentExtraValue(intentExtraKey.key, intentExtraKey.type, num));
+                        }
+                        map.put(intentExtraKey, numValueSet);
+                    } else if (intentExtraKey.type.equals("java.lang.String")) {
+                        Set<IntentExtraValue> stringValueSet = new HashSet<>();
+                        IntentExtraValue intentExtraValueStr = new IntentExtraValue(intentExtraKey);
+                        intentExtraValueStr.value = getStringValueOfIntent(intentExtraValueStr.value);
+                        stringValueSet.add(intentExtraValueStr);
+                        map.put(intentExtraKey, stringValueSet);
+                    } else {
+                        Set<IntentExtraValue> intentExtraValueSetOther = new HashSet<>();
+                        intentExtraValueSetOther.add(new IntentExtraValue(intentExtraKey));
+                        map.put(intentExtraKey, intentExtraValueSetOther);
+                    }
+
+
+                }
+
+                List<Set<IntentExtraValue>> listIntentExtraValueSet = new ArrayList<>();
+                for (Map.Entry<IntentExtraKey, Set<IntentExtraValue>> entry : map.entrySet()) {
+
+                    listIntentExtraValueSet.add(entry.getValue());
+                }
+
+                selectIntentExtraKeyNew(intentExtraList, new HashSet<>(), listIntentExtraValueSet);
+            }
+
+
+            //action
+
+            String action = getStringValueOfIntent(intentUnit.intent.action);
+
+
+            //categories
+
+            Set<String> categories = intentUnit.intent.categories;
+
+
+            if (intentExtraList.size() == 0) {
+                Intent newIntent = new Intent(intentUnit.intent);
+                newIntent.action = action;
+                newIntent.categories = categories;
+
+                IntentUnit newIntentUnit = new IntentUnit(intentUnit);
+                newIntentUnit.intent = newIntent;
+                newIntentUnitSet.add(newIntentUnit);
+            } else {
+                for (Set<IntentExtraKey> oneIntentExtra : intentExtraList) {
+                    Intent newIntent = new Intent(intentUnit.intent);
+                    newIntent.action = action;
+                    newIntent.categories = categories;
+                    newIntent.myExtras = oneIntentExtra;
+
+                    IntentUnit newIntentUnit = new IntentUnit(intentUnit);
+                    newIntentUnit.intent = newIntent;
+                    newIntentUnitSet.add(newIntentUnit);
+
+
+                }
+            }
+
+
+        }
+
+        return newIntentUnitSet;
+
+    }
+
+    private static void selectIntentExtraKeyNew(List<Set<IntentExtraKey>> intentExtraList, Set<IntentExtraKey> oneIntentExtra, List<Set<IntentExtraValue>> list) {
+
+
+        if (oneIntentExtra.size() == list.size()) {
+            intentExtraList.add(oneIntentExtra);
+            return;
+        }
+
+        for (IntentExtraValue intentExtraValue : list.get(oneIntentExtra.size())) {
+
+            Set<IntentExtraKey> oneIntentExtraCopy = new HashSet<>(oneIntentExtra);
+
+            oneIntentExtraCopy.add(new IntentExtraKey(intentExtraValue));
+
+            selectIntentExtraKeyNew(intentExtraList, oneIntentExtraCopy, list);
+        }
+    }
+
+    private IntentInfo getIntentInfo(IntentUnit intentUnit) {
+
+        IntentInfo intentInfo=new IntentInfo();
+        intentInfo.appPath=appPath;
+        intentInfo.appPackageName=packageName;
+        intentInfo.comPonentType=intentUnit.comPonentType;
+        intentInfo.comPonentName=intentUnit.comPonentName;
+
+        intentInfo.comPonentAction=intentUnit.intent.action;
+        intentInfo.comPonentCategory.addAll(intentUnit.intent.categories);
+        intentInfo.comPonentExtraData.addAll(intentUnit.intent.myExtras);
+
+
+        return intentInfo;
+
+
+
+
+
+
+
+
+    }
+
+    public static String getStringValueOfIntent(String strValue) {
+        if (strValue != null) {
+            if (strValue.contains("!0!")) {
+                strValue = "!0!";
+            } else if (strValue.contains("##")) {
+                String[] acs = strValue.split("##");
+                String temp = null;
+                for (String str : acs) {
+                    if (!str.startsWith("ZMS!")) {
+                        temp = str;
+                        break;
+                    }
+                }
+                if (temp == null) {
+                    strValue = acs[0];
+                } else {
+                    strValue = temp;
+                }
+            }
+        }
+        return strValue;
     }
 
 
@@ -411,10 +579,19 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             Set<Intent> intentSet = sootMethodIntentConditionSummary.get(sootMethodTgt);
 
+            AXmlNode aXmlNode = eas.get(sootMethodTgt.getDeclaringClass().getName());
+            if (aXmlNode == null) {
+                continue;
+
+            }
+
+            String componentName = sootMethodTgt.getDeclaringClass().getName();
+            String componentType = aXmlNode.getTag();
+
             if (intentSet != null) {
                 for (Intent intent : intentSet) {
                     intent.targetComponent = sootMethodTgt.getBytecodeSignature() + "##" + sootMethodTgt.getDeclaringClass().getName();
-                    ultiIntentSet.add(new IntentUnit(intent, myCallGraph.targetUnit));
+                    ultiIntentSet.add(new IntentUnit(intent, myCallGraph.targetUnit, componentType, componentName));
 
                 }
 
@@ -464,10 +641,36 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         Intent intent;//key
         Unit unit;
+        String comPonentType;
+        String comPonentName;
 
-        public IntentUnit(Intent intent, Unit unit) {
+
+        public IntentUnit(Intent intent, Unit unit, String comPonentType, String comPonentName) {
             this.intent = intent;
             this.unit = unit;
+            this.comPonentType = comPonentType;
+            this.comPonentName = comPonentName;
+        }
+
+        public IntentUnit(IntentUnit intentUnit) {
+            this.intent = intentUnit.intent;
+            this.unit = intentUnit.unit;
+            this.comPonentType = intentUnit.comPonentType;
+            this.comPonentName = intentUnit.comPonentName;
+        }
+
+        public IntentUnit() {
+
+        }
+
+        @Override
+        public String toString() {
+            return "IntentUnit{" +
+                    "intent=" + intent +
+                    ", unit=" + unit +
+                    ", comPonentType='" + comPonentType + '\'' +
+                    ", comPonentName='" + comPonentName + '\'' +
+                    '}';
         }
 
         @Override
@@ -1062,7 +1265,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             String value = null;
                             if (intentExtraKey.type.equals("java.lang.String")) {
                                 value = jointTwoStringValue(intentExtraKey.value.trim(), oneIntentExtraKey.value.trim());
-                            } else if (intentExtraKey.type.equals("long") || intentExtraKey.type.equals("short") || intentExtraKey.type.equals("int") || intentExtraKey.type.equals("float") || intentExtraKey.type.equals("double") || intentExtraKey.type.equals("byte")) {
+                            } else if (isNumberType(intentExtraKey)) {
                                 value = intentExtraKey.value + "##" + oneIntentExtraKey.value;//
                             } else//其他类型
                             {
@@ -1104,6 +1307,10 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         return null;
     }
 
+    private static boolean isNumberType(IntentExtraKey intentExtraKey) {
+        return intentExtraKey.type.equals("long") || intentExtraKey.type.equals("short") || intentExtraKey.type.equals("int") || intentExtraKey.type.equals("float") || intentExtraKey.type.equals("double") || intentExtraKey.type.equals("byte");
+    }
+
     private static String jointTwoStringValue(String str1, String str2) {
 
         Set<String> str1SetOfChildren = getAllCondition(str1);
@@ -1125,7 +1332,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                 }
                 if ((actionOfChildren.contains("!0!")) && (actionOfParent.contains("!0!"))) {
-                    result = "!0!" + "##" + result;
+                    result = result;
                     flag = true;
                     continue;
 
@@ -1200,26 +1407,21 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     protected Pair<Intent, Boolean> runSolvingPhase(SootMethod method, List<Unit> currPath, Set<String> interPathCond, Set<String> interDecls) {
 
-        Set<String> interPathCondNew=new HashSet<>();
+        Set<String> interPathCondNew = new HashSet<>();
 
-        Set<String> interDeclsNew=new HashSet<>();
-        for(String oneInterPathCond:interPathCond)
-        {
-            String [] oneCondArray=oneInterPathCond.split("\n");
-            for(String oneCond:oneCondArray)
-            {
+        Set<String> interDeclsNew = new HashSet<>();
+        for (String oneInterPathCond : interPathCond) {
+            String[] oneCondArray = oneInterPathCond.split("\n");
+            for (String oneCond : oneCondArray) {
                 interPathCondNew.add(oneCond);
             }
         }
-        for(String oneInterDecl:interDecls)
-        {
-            String [] oneDeclArray=oneInterDecl.split("\n");
-            for(String oneDecl:oneDeclArray)
-            {
+        for (String oneInterDecl : interDecls) {
+            String[] oneDeclArray = oneInterDecl.split("\n");
+            for (String oneDecl : oneDeclArray) {
                 interDeclsNew.add(oneDecl);
             }
         }
-
 
 
         Pair<Intent, Boolean> soln = findSolutionForPath(interPathCondNew, method, interDeclsNew, currPath);
@@ -1618,7 +1820,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         }
         int index = 0;
         int count = 0;
-        while (index != -1) {
+        while (index != -1) {//含有多个ZMS！
             index = value.indexOf("ZMS!", index);
             if (index != -1) {
                 count++;
@@ -2369,9 +2571,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         Value opVal2 = conditionRight;
 
 
-        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/if.txt", true);
-        writeFile.writeStr(conditionLeft.getType().toString() + "***" + condition + "$$$" + conditionRight.getType().toString() + "###" + ifStmt + "\n");
-        writeFile.close();
+        if (new File("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/if.txt").length() < 104857600) {
+            WriteFile writeFile = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/if.txt", true);
+            writeFile.writeStr(conditionLeft.getType().toString() + "***" + condition + "$$$" + conditionRight.getType().toString() + "###" + ifStmt + "\n");
+            writeFile.close();
+        }
 
 
         boolean generateCondExpr = true;
@@ -2660,12 +2864,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         if (isFallThrough) {
             if (opVal1Org.getType() instanceof BooleanType) {
 
-                if(ifConditionValue())
-                {
+                if (ifConditionValue()) {
                     branchSensitiveSymbol = "==";
-                }
-                else
-                {
+                } else {
                     branchSensitiveSymbol = negateSymbol("==");
                 }
 
@@ -2675,12 +2876,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         } else {
             if (opVal1Org.getType() instanceof BooleanType) {
 
-                if(ifConditionValue())
-                {
+                if (ifConditionValue()) {
                     branchSensitiveSymbol = negateSymbol("==");
-                }
-                else
-                {
+                } else {
                     branchSensitiveSymbol = "==";
                 }
 
@@ -2855,6 +3053,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                     {
                         String notString = "(str.++ " + "\"ZMS!\" " + opExpr2 + ")";
                         condExpr = "(assert (= " + opExpr1 + " " + notString + "))";
+
+
+                        // condExpr = "(assert (not (= " + opExpr1 + " " + opExpr2 + ")))";
 
                     } else//!string op1  !string  op2
                     {
@@ -3123,23 +3324,17 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                                             String newAssert = null;
                                             if (isFallThrough) { // intent contains the category
-                                                if(ifConditionValue())
-                                                {
+                                                if (ifConditionValue()) {
                                                     newAssert = "(assert (exists ((index Int)) (= (select cats index) \"" + category + "\")))";
-                                                }
-                                                else
-                                                {
+                                                } else {
                                                     newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
                                                 }
 
                                                 //addIntentCategoryForPath(currPath,category);
                                             } else { // intent does not contain the category
-                                                if(ifConditionValue())
-                                                {
+                                                if (ifConditionValue()) {
                                                     newAssert = "(assert (forall ((index Int)) (not(= (select cats index) \"" + category + "\"))))";
-                                                }
-                                                else
-                                                {
+                                                } else {
                                                     newAssert = "(assert (exists ((index Int)) (= (select cats index) \"" + category + "\")))";
                                                 }
                                             }
@@ -4087,8 +4282,9 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         } else {
 
 
-            appDir = Config.wandoijiaAPP;
+            //appDir = Config.wandoijiaAPP;
             //appDir = Config.fDroidAPPDir;
+            appDir = Config.selectAPP;
         }
 
         File appDirFile = new File(appDir);

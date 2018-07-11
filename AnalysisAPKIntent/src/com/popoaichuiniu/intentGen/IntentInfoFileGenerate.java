@@ -1,10 +1,14 @@
 package com.popoaichuiniu.intentGen;
 
+import com.popoaichuiniu.util.ReadFile;
+
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class IntentInfoFileGenerate {
 
@@ -60,7 +64,7 @@ public class IntentInfoFileGenerate {
                 }
                 else
                 {
-                    for(ExtraData extraData:intentInfo.comPonentExtraData)
+                    for(IntentExtraKey extraData:intentInfo.comPonentExtraData)
                     {
                         if(extraString.equals(""))
                         {
@@ -68,7 +72,7 @@ public class IntentInfoFileGenerate {
                         }
                         else
                         {
-                            extraString=extraString+","+extraData.type+"&"+extraData.key+"&"+extraData.value;
+                            extraString=extraString+";"+extraData.type+"&"+extraData.key+"&"+extraData.value;
                         }
                     }
                 }
@@ -90,5 +94,7 @@ public class IntentInfoFileGenerate {
 
 
     }
+
+
 
 }

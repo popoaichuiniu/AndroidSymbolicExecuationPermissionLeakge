@@ -4,21 +4,26 @@ import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
 import com.popoaichuiniu.util.MyLogger;
+import com.popoaichuiniu.util.ReadFile;
 import com.popoaichuiniu.util.Util;
 import soot.*;
+import soot.jimple.InvokeExpr;
+import soot.jimple.Stmt;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class GenerateUnitNeedToAnalysis {
 
 
-    private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
+    private static boolean isTest=false;
 
+
+    private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
+    static Set<String> dangerousPermissions=null;
+    static Map<String,Set<String>> apiPermissionMap= AndroidInfoHelper.getPermissionAndroguardMethods();
     private static void generateUnitToAnalysis(List<SootMethod> ea_entryPoints, CallGraph cg, String appPath)  {
 
 
@@ -54,7 +59,8 @@ public class GenerateUnitNeedToAnalysis {
                     {
                         continue;
                     }
-                    if (Util.isPermissionProtectedAPI(calleeSootMethod)) {
+                    Set<String> permissionSet=apiPermissionMap.get(calleeSootMethod.getBytecodeSignature());
+                    if (permissionSet!=null&&isExistSimilarItem(permissionSet,dangerousPermissions)) {
                         unitsNeedToAnalysis.add(unit);
                         MyLogger.getOverallLogger(GenerateUnitNeedToAnalysis.class).info("################"+unit.toString()+"################");
                     } else {
@@ -95,7 +101,17 @@ public class GenerateUnitNeedToAnalysis {
                 for(Unit unit:unitsNeedToAnalysis)
                 {
                     try {
-                        bufferedWriterUnitsNeedAnalysis.write(sootMethod.getBytecodeSignature()+"#"+unit.getTag("BytecodeOffsetTag")+"#"+unit.toString()+"\n");
+                        Stmt stmt= (Stmt) unit;
+                        InvokeExpr invokeExpr=stmt.getInvokeExpr();
+                        if(invokeExpr==null)
+                        {
+                            throw new RuntimeException("illegal unitNeedAnalysis");
+                        }
+                        else
+                        {
+                            bufferedWriterUnitsNeedAnalysis.write(sootMethod.getBytecodeSignature()+"#"+unit.getTag("BytecodeOffsetTag")+"#"+unit.toString()+"#"+invokeExpr.getMethod().getBytecodeSignature()+"\n");
+                        }
+
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -111,23 +127,55 @@ public class GenerateUnitNeedToAnalysis {
 
 
     }
+
+    private static boolean isExistSimilarItem(Set<String> permissionSet, Set<String> dangerousPermissions) {
+        for(String permission:permissionSet)
+        {
+            if(dangerousPermissions.contains(permission))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static  void  main(String [] args)
     {
 
+        dangerousPermissions=new ReadFile("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt").getAllContentLinSet();
+        for(Iterator<String> dangerousPermissionsIterator=dangerousPermissions.iterator();((Iterator) dangerousPermissionsIterator).hasNext();)
+        {
+            String dangerousPermission=dangerousPermissionsIterator.next();
+            if(dangerousPermission.startsWith("#"))
+            {
+                dangerousPermissionsIterator.remove();
+            }
+        }
+        //String appDirPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
 
+        //String appDirPath=Config.wandoijiaAPP;
+        String appDirPath=null;
+        if(isTest)
+        {
+            appDirPath=Config.defaultAppPath;
+        }
+        else
+        {
+            appDirPath=Config.selectAPP;
+        }
+
+
+        File appDir=new File(appDirPath);
         try {
 
-            bufferedWriterOverridePermissionMethod=new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+"overridePermssionMethodSituation.txt"));
+            bufferedWriterOverridePermissionMethod=new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_overridePermissionMethodSituation.txt"));
         }
         catch (IOException e)
         {
             e.printStackTrace();
         }
 
-        //String appDirPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
 
-        String appDirPath=Config.wandoijiaAPP;
-        File appDir=new File(appDirPath);
         if(appDir.isDirectory())
         {
 
@@ -137,7 +185,7 @@ public class GenerateUnitNeedToAnalysis {
             List<String> hasGenerateAppList=null;
             try {
                 hasGenerateAppList=new ArrayList<>();
-                BufferedReader bufferedReaderHasGenerateUnitNeedAnalysis=new BufferedReader(new FileReader("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+"hasGeneratedAPP.txt"));
+                BufferedReader bufferedReaderHasGenerateUnitNeedAnalysis=new BufferedReader(new FileReader("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt"));
 
                 String line=null;
 
@@ -164,7 +212,7 @@ public class GenerateUnitNeedToAnalysis {
 
             try {
 
-                bufferedWriterHasGenerateUnitNeedAnalysis =new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+"hasGeneratedAPP.txt"));
+                bufferedWriterHasGenerateUnitNeedAnalysis =new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt"));
 
             }
             catch (IOException e)
@@ -232,6 +280,10 @@ public class GenerateUnitNeedToAnalysis {
 
     public  static  void  singleAPPAnalysis(String appPath)
     {
+
+
+
+
         AndroidInfoHelper androidInfo = new AndroidInfoHelper(appPath);
         List<String> string_EAs = androidInfo.getString_EAs();
 
