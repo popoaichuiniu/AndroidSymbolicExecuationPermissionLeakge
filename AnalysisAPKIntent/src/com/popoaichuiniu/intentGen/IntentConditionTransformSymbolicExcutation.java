@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 
 public class IntentConditionTransformSymbolicExcutation extends SceneTransformer {
 
-    private static boolean exeModelTest = false;
+    private static boolean exeModelTest = Config.isTest;
 
 
     private boolean pathLimitEnabled = true;

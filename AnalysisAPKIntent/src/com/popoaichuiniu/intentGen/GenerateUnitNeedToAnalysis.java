@@ -18,7 +18,7 @@ import java.util.*;
 public class GenerateUnitNeedToAnalysis {
 
 
-    private static boolean isTest=false;
+    private static boolean isTest=Config.isTest;
 
 
     private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
@@ -212,7 +212,7 @@ public class GenerateUnitNeedToAnalysis {
 
             try {
 
-                bufferedWriterHasGenerateUnitNeedAnalysis =new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt"));
+                bufferedWriterHasGenerateUnitNeedAnalysis =new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt",true));
 
             }
             catch (IOException e)

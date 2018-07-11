@@ -174,28 +174,40 @@ def test(apkPath,intent_file):#
         print(apkPath+"待测apk安装失败")
         return False
 
-class myThread (threading.Thread):
+class MyThread (threading.Thread):
+    isRun=True
     def __init__(self, cmd):
         threading.Thread.__init__(self)
 
         self.cmd=cmd
+        self.isRun = True
 
     def run(self):
        status,output=execuateCmd(self.cmd)
        print(output)
+       while(status == 0 and MyThread.isRun):
+           pass
+
+
 
 def initialLogger():
-    log1="adb logcat | grep ZMSInstrument | tee ZMSInstrument.log"
-    log2="adb logcat | grep ZMSStart | tee ZMSStart.log"
-    log3="adb logcat *:E|tee error.log"
-    # 创建3个线程
+    log1='guake -e  "adb logcat | grep ZMSInstrument | tee -a /home/zms/logger_file/testlog/ZMSInstrument.log"'
+    log2='guake -e  "adb logcat | grep ZMSStart | tee -a /home/zms/logger_file/testlog/ZMSStart.log"'
+    log3='guake -e  "adb logcat *:E|tee -a /home/zms/logger_file/testlog/error.log"'
 
-    # thread1=myThread(log1)
-    # thread2=myThread(log2)
-    # thread3=myThread(log3)
-    # thread1.start()
-    # thread2.start()
-    # thread3.start()
+    #创建3个线程
+
+    #execuateCmd('guake -e "adb logcat | grep ZMSInstrument | tee ZMSInstrument.log"')
+
+    #log1="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/testAPP/testLog/startLogger.sh"
+    thread1=MyThread(log1)
+    thread2=MyThread(log2)
+    thread3=MyThread(log3)
+    thread1.start()
+    thread2.start()
+    thread3.start()
+    time.sleep(5)
+
 
 
 
@@ -216,7 +228,7 @@ if __name__ == '__main__':
 
     #test("sms2.apk","intentInfo1.txt")
 
-    #initialLogger()
+    initialLogger()
     fail_apk_list=open("fail_apk_list","w")
     success_apk_list=open("success_apk_list","w")
     while(not isADBWorkNormal()):
@@ -224,7 +236,7 @@ if __name__ == '__main__':
         time.sleep(3)
 
     #apkDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput"
-    apkDir='/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/instrumented'
+    apkDir='/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/instrumented'
     for apkPath,intent_file in analysisAPKDir(apkDir):
         flag_test=test(apkPath,intent_file)
         if(flag_test):
@@ -237,7 +249,7 @@ if __name__ == '__main__':
         #uninstall_app(apkPath)
     success_apk_list.close()
     fail_apk_list.close()
-
+MyThread.isRun=False#doesn't work  thread is died but subProcess to execuate command other run
 print("over")
 
 

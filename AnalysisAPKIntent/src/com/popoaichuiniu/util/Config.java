@@ -13,7 +13,7 @@ public class Config {
 
     public  static  String androidJar="/home/zms/platforms";
 
-    public  static  String defaultAppPath ="/home/zms/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/app-debug.apk";
+    public  static  String defaultAppPath ="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/app-debug.apk";
 
     public static String fDroidAPPDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/sootOutput";
 
@@ -23,7 +23,7 @@ public class Config {
 
     public static  String Z3_RUNTIME_SPECS_DIR="Z3_RUNTIME_SPECS_DIR";
 
-    public static boolean isTest=true;
+    public static boolean isTest=false;
 
     // public  static  String defaultAppPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/万花筒之旅一宝宝巴士.apk";
     public static  void setSootOptions(String appPath)

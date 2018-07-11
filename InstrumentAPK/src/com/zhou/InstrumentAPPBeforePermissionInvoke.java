@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.*;
 
 import com.popoaichuiniu.util.Config;
+import com.popoaichuiniu.util.ReadFile;
 import com.popoaichuiniu.util.Util;
 import com.popoaichuiniu.util.WriteFile;
 import org.javatuples.Pair;
@@ -17,10 +18,7 @@ import soot.SootMethod;
 import soot.Transform;
 import soot.Unit;
 import soot.Value;
-import soot.jimple.InvokeStmt;
-import soot.jimple.Jimple;
-import soot.jimple.StaticInvokeExpr;
-import soot.jimple.StringConstant;
+import soot.jimple.*;
 import soot.options.Options;
 import soot.tagkit.BytecodeOffsetTag;
 
@@ -42,7 +40,7 @@ class InstrumentUnit
 
 public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
-	private static String appDir=null;
+
 	private static boolean isTest=Config.isTest;
 
 	@Override
@@ -102,7 +100,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 	private Set<Pair<Integer, String>> targets = null;
 
-	private  static BufferedWriter bufferedWriter=null;
+	private  static BufferedWriter bufferedWriter_instrument_content =null;
 	private static BufferedWriter bufferedWriter_app_has_Instrumented=null;
 
 	private static WriteFile writeFileAppInstrumentException =null;
@@ -161,14 +159,8 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 		String[] instrumentArgs=new String[3];
 
-		try
-		{bufferedWriter_app_has_Instrumented = new BufferedWriter(new FileWriter("InstrumentAPK/instrument_log/app_has_Instrumented.txt" ));
-		}
-		catch (IOException e)
-		{
-			e.printStackTrace();
-		}
 
+		String appDir=null;
 		if(isTest)
 		{
 			appDir=Config.defaultAppPath;
@@ -186,11 +178,8 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 			File logFileDir=new File("InstrumentAPK/instrument_log/"+appDirFile.getName());
 			if(!logFileDir.exists())
 			{
-				try {
-					logFileDir.createNewFile();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+				logFileDir.mkdir();
+
 			}
 			if(logFileDir.exists())
 			{
@@ -199,7 +188,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 			}
 			else
 			{
-				return;
+				throw  new RuntimeException("创建logFileDir失败！");
 			}
 		}
 		else
@@ -210,8 +199,20 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 
 
+		Set<String> hasInstrumentAPP=new ReadFile("InstrumentAPK/instrument_log/app_has_Instrumented.txt").getAllContentLinSet();
 
+		if(hasInstrumentAPP==null)
+		{
+			throw  new RuntimeException("读取app_has_Instrumented.txt失败！");
+		}
 
+		try
+		{bufferedWriter_app_has_Instrumented = new BufferedWriter(new FileWriter("InstrumentAPK/instrument_log/app_has_Instrumented.txt" ));
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
 
 
 
@@ -220,6 +221,10 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 		{
 			for(File file:appDirFile.listFiles()) {
 				if (file.getName().endsWith(".apk")) {
+					if(hasInstrumentAPP.contains(file.getAbsolutePath()))
+					{
+						continue;
+					}
 					File unitedAnalysis = new File(file.getAbsolutePath() + "_UnitsNeedAnalysis.txt");
 					if (unitedAnalysis.exists()) {
 
@@ -260,6 +265,11 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 
 					}
+					try {
+						bufferedWriter_app_has_Instrumented.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 
 				}
 			}
@@ -275,11 +285,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 		}
 
 
-		try {
-			bufferedWriter_app_has_Instrumented.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+
 
 
 	}
@@ -288,6 +294,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 		String outputDir=new File(args[0]).getParentFile().getAbsolutePath()+"/"+"instrumented";
 		File outputDirFile=new File(outputDir);
+
 		if(!outputDirFile.exists())
 		{ outputDirFile.mkdir();
 
@@ -319,7 +326,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 
 		try {
-			bufferedWriter=new BufferedWriter(new FileWriter(args[0]+"_instrument.log"));
+			bufferedWriter_instrument_content =new BufferedWriter(new FileWriter(args[0]+"_instrument.log"));
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -334,7 +341,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 
 		soot.Main.main(sootArgs);
 		try {
-			bufferedWriter.close();
+			bufferedWriter_instrument_content.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -383,8 +390,8 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
 	        b.validate();
 	        inStrumentCount =inStrumentCount+1;
 	        try {
-				bufferedWriter.write(logMessage.toString()+"\n");
-				bufferedWriter.flush();
+				bufferedWriter_instrument_content.write(logMessage.toString()+"\n");
+				bufferedWriter_instrument_content.flush();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -415,8 +422,8 @@ public  void addInstrumentBeforeStatement(Body b, Unit point,String message){
 	        b.validate();
 			inStrumentCount =inStrumentCount+1;
 	        try {
-				bufferedWriter.write(logMessage.toString()+"\n");
-				bufferedWriter.flush();
+				bufferedWriter_instrument_content.write(logMessage.toString()+"\n");
+				bufferedWriter_instrument_content.flush();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
