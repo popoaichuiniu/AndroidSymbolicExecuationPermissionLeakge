@@ -244,6 +244,10 @@ def test(apkPath,intent_file):#
     intent=open(intent_file,"r")
     lines_intent=intent.readlines()
     intent.close()
+    statistic_intent_count=open("intent_count",'a+')
+    statistic_intent_count.write(apkPath+"\n")
+    statistic_intent_count.write(len(lines_intent)+"\n")
+    statistic_intent_count.close()
     if(len(lines_intent)>100):
         too_many_test_app=open("too_many_test_app",'a+')
         too_many_test_app.write(apkPath+"\n")
@@ -294,6 +298,7 @@ def test(apkPath,intent_file):#
                     print("等待手机启动！")
                     time.sleep(1)
             else:
+                app_test_status.write("reboot phone error" + "\n")
                 raise RuntimeError
 
     print(apkPath + "222222222222222222222222222222222222222" + "\n")
@@ -350,7 +355,10 @@ def initialLogger():
     time.sleep(10)
 def getFileContent(path):
     str_file=open(path,'r')
-    return str_file.readlines();
+    content=[]
+    for line in str_file.readlines():
+        content.append(line.rstrip('\n'))
+    return content
 
 
 
@@ -384,8 +392,8 @@ if __name__ == '__main__':
 
     #test************************************************************before
     initialLogger()
-    fail_apk_list=open("failTest_apk_list","w")
-    success_apk_list=open("successTest_apk_list","w")
+    fail_apk_list=open("failTest_apk_list","a+")
+    success_apk_list=open("successTest_apk_list","a+")
     has_process = getFileContent("has_process_app_list")
     has_process_app_list = open("has_process_app_list", "a+")
     while(not isADBWorkNormal()):

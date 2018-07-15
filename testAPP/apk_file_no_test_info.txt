@@ -1,4 +1,0 @@
-/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented/Cover锁屏_signed_zipalign.apk
-/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented/和通讯录_signed_zipalign.apk
-/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented/Cover锁屏_signed_zipalign.apk
-/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented/和通讯录_signed_zipalign.apk
