@@ -1,15 +1,12 @@
 package com.popoaichuiniu.util;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ReadFile {
+public class ReadFileOrInputStream {
 
     private String fileName=null;
 
@@ -22,7 +19,7 @@ public class ReadFile {
 
 
 
-    public ReadFile(String fileName) {
+    public ReadFileOrInputStream(String fileName) {
         this.fileName = fileName;
         try {
             bufferedReader=new BufferedReader(new FileReader(fileName));
@@ -33,6 +30,31 @@ public class ReadFile {
             e.printStackTrace();
         }
 
+    }
+
+    public ReadFileOrInputStream(InputStream inputStream) {
+        this.bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+    }
+
+    public String getContent()
+    {
+        String line = null;
+        String content = "";
+
+        try {
+            while ((line = bufferedReader.readLine()) != null) {
+                content=content+line+"\n";
+
+            }
+            bufferedReader.close();
+        }
+        catch (IOException e)
+        {
+
+            e.printStackTrace();
+        }
+
+        return content;
     }
 
 

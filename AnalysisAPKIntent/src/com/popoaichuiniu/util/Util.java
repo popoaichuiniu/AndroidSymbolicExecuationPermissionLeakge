@@ -181,6 +181,15 @@ public class Util {
 
     public static boolean isLibraryClass(String methodDesc) {
 
+//
+//        excludeList.add("java.*");
+//        excludeList.add("sun.misc.*");
+//        excludeList.add("android.*");
+//        excludeList.add("org.apache.*");
+//        excludeList.add("soot.*");
+//        excludeList.add("javax.servlet.*");
+//        excludeList.add("org.javatuples.*");
+
         if (methodDesc.contains("<android.")) {
             return true;
         }
@@ -188,21 +197,6 @@ public class Util {
             return true;
         }
         if (methodDesc.contains("<org.apache.")) {
-            return true;
-        }
-        if (methodDesc.contains("<org.hamcrest.")) {
-            return true;
-        }
-        if (methodDesc.contains("<org.junit.")) {
-            return true;
-        }
-        if (methodDesc.contains("<org.xml.")) {
-            return true;
-        }
-        if (methodDesc.contains("<org.json.")) {
-            return true;
-        }
-        if (methodDesc.contains("<org.w3c.")) {
             return true;
         }
         if (methodDesc.contains("<soot.")) {
@@ -214,10 +208,7 @@ public class Util {
         if (methodDesc.contains("<javax.servlet.")) {
             return true;
         }
-        if (methodDesc.contains("<javax.annotation.")) {
-            return true;
-        }
-        if (methodDesc.contains("<com.squareup.javawriter.")) {
+        if (methodDesc.contains("<org.javatuples.")) {
             return true;
         }
         return false;

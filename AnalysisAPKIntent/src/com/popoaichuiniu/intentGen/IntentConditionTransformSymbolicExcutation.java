@@ -4292,7 +4292,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         if (appDirFile.isDirectory()) {
 
 
-            Set<String> hasAnalysisAPP = new ReadFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt").getAllContentLinSet();
+            Set<String> hasAnalysisAPP = new ReadFileOrInputStream("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt").getAllContentLinSet();
 
 
             if (hasAnalysisAPP == null) {

@@ -221,17 +221,17 @@ public class MySetupApplication extends SetupApplication {
 		entryPointCreator = createEntryPointCreator();
 	}
 
-	private void initializeMySoot() {
 
+	protected void initializeSoot() {
 		soot.G.reset();// 标准的soot操作，清空soot之前所有操作遗留下的缓存值
 
 		Options.v().set_src_prec(Options.src_prec_apk);// 设置优先处理的文件格式
 
 		//Options.v().set_process_dir(Collections.singletonList(defaultAppPath));// 处理文件夹中所有的class
-				// singletonList(T) 方法用于返回一个只包含指定对象的不可变列表
+		// singletonList(T) 方法用于返回一个只包含指定对象的不可变列表
 
 		//Options.v().set_android_jars(androidPlatformPath);// 在该路径下找android.jar
-		
+
 		//////////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////////
 
@@ -258,7 +258,7 @@ public class MySetupApplication extends SetupApplication {
 //		includeList.add("android.support.*");//不添加的话会有android.support.* 某类的getActiveBody为空的错误，
 //		//为什么android.*不会呢？是应为classpath有android.jar吗？测试了，好像也不行。
 //		Options.v().set_include(includeList);
-		
+
 
 
 
@@ -312,30 +312,26 @@ public class MySetupApplication extends SetupApplication {
 
 
 
-		
+
 		//Phantom classes are classes that are neither in the process directory nor on
 //		the Soot classpath, but that are referenced by some class / method body that
 //		Soot loads. If phantom classes are enabled, Soot will not just abort and
 //		fail on such an unresolvable reference, but create an empty stub called a
 //		phantom class which in turn contains phanom methods to make up for the
 //		missing bits and pieces.
-		
-		
-		//设置cg pack的选项		
-		
+
+
+		//设置cg pack的选项
+
 		Options.v().setPhaseOption("cg.cha", "on");//不用设置的默认就为true
-		
+
 		Options.v().setPhaseOption("cg.cha", "verbose:true");
-		
+
 		Options.v().setPhaseOption("cg.cha", "apponly:true");
-		
+
 		//Options.v().setPhaseOption("cg.spark", "off");// 默认为fasle 构建cg的选项，spark是一个指向性分析框架 这个打开的会可能会消除一些 节点
 
-		
 
-	}
-	protected void initializeSoot() {
-		initializeMySoot();
 
 		Options.v().set_output_format(Options.output_format_none);
 

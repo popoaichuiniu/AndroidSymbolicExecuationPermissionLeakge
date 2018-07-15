@@ -58,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
 
                     String content = null;
-                    Log.i("ZMSStart", "######################################################");
+                    Log.i("ZMSStart", "11111111111111111111111111111111111111111111111111111111111111");
                     while ((content = bufferedRead.readLine()) != null) {
                         String[] str = content.split("#");
 
@@ -180,11 +180,13 @@ public class MainActivity extends AppCompatActivity {
                             continue;
                         }
 
+                        Log.i("ZMSStart", appPath);
+
 
                         intent.setClassName(appPackageName, comPonentName);
 
-                        Log.i("ZMSStart", "packageName********" + appPackageName + "******************");
-                        Log.i("ZMSStart", comPonentName);
+                        Log.i("ZMSStart", "启动********" + appPackageName + "******************"+comPonentName);
+
 
                         if (!comPonentType.equals("null")) {
 
@@ -200,32 +202,20 @@ public class MainActivity extends AppCompatActivity {
                                 Log.i("ZMSStart", comPonentType + ":" + comPonentName + "启动成功！");
 
 
-                            } else {
-                                if (!comPonentType.equals("contentProvider")) {
-
-
-                                    Log.i("ZMSStart", comPonentType + ":" + comPonentName + "启动失败！");
-
-
-                                } else {
-
-                                    Log.i("ZMSStart", comPonentType + ":" + comPonentName + "contentProvider忽略");
-
-                                }
                             }
 
                         }
-                        Log.i("ZMSStart", "packageName********" + appPackageName + "******************");
 
-                        try {
-                            Thread.sleep(300);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+//
+//                        try {
+//                            Thread.sleep(300);
+//                        } catch (InterruptedException e) {  //one--------------------------------------------
+//                            e.printStackTrace();
+//                        }
 
                     }
 
-                    Log.i("ZMSStart", "######################################################");
+
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -233,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(3000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
 
@@ -275,12 +265,12 @@ public class MainActivity extends AppCompatActivity {
             } else if (comPonentType.equals("provider")) {
 
 
-                ///-------------------------
+                Log.i("ZMSStart", "provider忽略");
             }
 
         } catch (Exception e) {
 
-            Log.i("ZMSStart", comPonentType + ":" + comPonentName + " " + e);
+            Log.i("ZMSStart", comPonentType + ":" + comPonentName +"启动异常! "+ e);
 
             return false;
         }

@@ -1,14 +1,9 @@
 package com.popoaichuiniu.intentGen;
 
-import com.popoaichuiniu.util.ReadFile;
-
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 public class IntentInfoFileGenerate {
 

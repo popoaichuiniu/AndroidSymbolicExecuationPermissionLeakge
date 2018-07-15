@@ -4,7 +4,7 @@ import com.popoaichuiniu.jacy.AndroidCallGraphHelper;
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
 import com.popoaichuiniu.util.MyLogger;
-import com.popoaichuiniu.util.ReadFile;
+import com.popoaichuiniu.util.ReadFileOrInputStream;
 import com.popoaichuiniu.util.Util;
 import soot.*;
 import soot.jimple.InvokeExpr;
@@ -142,7 +142,7 @@ public class GenerateUnitNeedToAnalysis {
     public static  void  main(String [] args)
     {
 
-        dangerousPermissions=new ReadFile("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt").getAllContentLinSet();
+        dangerousPermissions=new ReadFileOrInputStream("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt").getAllContentLinSet();
         for(Iterator<String> dangerousPermissionsIterator=dangerousPermissions.iterator();((Iterator) dangerousPermissionsIterator).hasNext();)
         {
             String dangerousPermission=dangerousPermissionsIterator.next();

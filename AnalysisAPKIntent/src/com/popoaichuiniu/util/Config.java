@@ -23,7 +23,7 @@ public class Config {
 
     public static  String Z3_RUNTIME_SPECS_DIR="Z3_RUNTIME_SPECS_DIR";
 
-    public static boolean isTest=false;
+    public static boolean isTest=true;
 
     // public  static  String defaultAppPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/万花筒之旅一宝宝巴士.apk";
     public static  void setSootOptions(String appPath)
@@ -46,21 +46,16 @@ public class Config {
 
 
 
-//		Options.v().set_app(true);//
-//
-//		List<String> excludeList = new LinkedList<String>();
-//		excludeList.add("java.*");
-//		excludeList.add("sun.misc.*");//app false也是可以设置这个的
-//		excludeList.add("android.*");
-//		excludeList.add("org.apache.*");
-//		excludeList.add("soot.*");
-//		excludeList.add("javax.servlet.*");
-//		Options.v().set_exclude(excludeList);//这个底下也有，那个sootConfig.setSootOptions(Options.v());
-//
-//		List<String> includeList = new LinkedList<String>();
-//		includeList.add("android.support.*");//不添加的话会有android.support.* 某类的getActiveBody为空的错误，
-//		//为什么android.*不会呢？是应为classpath有android.jar吗？测试了，好像也不行。
-//		Options.v().set_include(includeList);
+        List<String> excludeList = new LinkedList<String>();
+        excludeList.add("java.*");
+        excludeList.add("sun.misc.*");
+        excludeList.add("android.*");
+        excludeList.add("org.apache.*");
+        excludeList.add("soot.*");
+        excludeList.add("javax.servlet.*");
+        excludeList.add("org.javatuples.*");
+        Options.v().set_exclude(excludeList);
+        Options.v().set_no_bodies_for_excluded(false);
 
 
 
@@ -106,15 +101,7 @@ public class Config {
         // Set the Soot configuration options. Note that this will needs to be
         // done before we compute the classpath.
 
-        List<String> excludeList = new LinkedList<String>();
-        excludeList.add("java.*");
-        excludeList.add("sun.misc.*");
-        excludeList.add("android.*");
-        excludeList.add("org.apache.*");
-        excludeList.add("soot.*");
-        excludeList.add("javax.servlet.*");
-        Options.v().set_exclude(excludeList);
-        Options.v().set_no_bodies_for_excluded(true);
+
 
 
         Options.v().set_keep_line_number(true);
@@ -126,6 +113,7 @@ public class Config {
 
         //Options.v().set_soot_classpath(apkFileLocation+ File.pathSeparator+"/home/zms/platforms/android-27/android.jar");
         Options.v().set_soot_classpath(Scene.v().getAndroidJarPath(androidJar, appPath));//+":/media/softdata/AndroidSDKdirectory/extras/android/support"
+
         Main.v().autoSetOptions();
 
         // Load whetever we need

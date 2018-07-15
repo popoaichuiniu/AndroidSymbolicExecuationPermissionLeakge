@@ -2,7 +2,7 @@ package com.popoaichuiniu.intentGen;
 
 import com.popoaichuiniu.jacy.AndroidInfoHelper;
 import com.popoaichuiniu.util.Config;
-import com.popoaichuiniu.util.ReadFile;
+import com.popoaichuiniu.util.ReadFileOrInputStream;
 import com.popoaichuiniu.util.Util;
 import com.popoaichuiniu.util.WriteFile;
 import org.dom4j.*;
@@ -49,11 +49,11 @@ public class EAExportUnitUsePermission {
         for (File file : new File(appDir).listFiles()) {
             if (file.getName().endsWith(".txt"))//"1元乐购.apk_UnitsNeedAnalysis.txt"
             {
-                ReadFile readFile = new ReadFile(file.getAbsolutePath());
+                ReadFileOrInputStream readFileOrInputStream = new ReadFileOrInputStream(file.getAbsolutePath());
                 String apkName = appDir+"/"+file.getName().substring(0, file.getName().length() - 22);
                 System.out.println(apkName);
                 Set<String> appPermissionSet = new HashSet<>();
-                for (String str : readFile.getAllContentLinSet()) {
+                for (String str : readFileOrInputStream.getAllContentLinSet()) {
                     String[] contentArray = str.split("#");
                     String sootMethodSignature = contentArray[3];
                     for (String permission : sootMethodPermissionMap.get(sootMethodSignature)) {

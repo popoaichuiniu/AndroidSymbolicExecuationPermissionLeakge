@@ -1,11 +1,10 @@
 package com.popoaichuiniu.intentGen;
 
 import com.popoaichuiniu.util.Config;
-import com.popoaichuiniu.util.ReadFile;
+import com.popoaichuiniu.util.ReadFileOrInputStream;
 import com.popoaichuiniu.util.WriteFile;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
-import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 
@@ -19,8 +18,8 @@ public class SelectAPP {
     private static String appDir = Config.wandoijiaAPP;
 
     public static void main(String[] args) {
-        ReadFile readFile = new ReadFile("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt");
-        Set<String> dangerousPermissions=readFile.getAllContentLinSet();
+        ReadFileOrInputStream readFileOrInputStream = new ReadFileOrInputStream("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt");
+        Set<String> dangerousPermissions= readFileOrInputStream.getAllContentLinSet();
         for(Iterator<String> dangerousPermissionsIterator=dangerousPermissions.iterator();((Iterator) dangerousPermissionsIterator).hasNext();)
         {
             String dangerousPermission=dangerousPermissionsIterator.next();
