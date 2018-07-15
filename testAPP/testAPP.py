@@ -90,7 +90,28 @@ def getPackageName(appPath):#
         print("error:"+str(status)+","+output)
         return None
 
-def uninstall_app(appPath):#ok
+def uninstall_app_by_packageName(packageName):
+    if (not isADBWorkNormal()):
+        print("adb work abnormal!")
+        return False
+    else:
+        install_app = "adb uninstall " + " " + packageName
+        status, output = execuateCmd(install_app)
+        if (status == 0):  # Success
+            index = output.find("Success")
+            if (index != -1):
+                print(packageName + "卸载成功\n")
+                return True
+            else:
+                print(packageName + "卸载失败\n")
+                return False
+
+        else:
+            print("error:" + str(status) + "," + output)
+            return False
+
+
+def uninstall_app_by_path(appPath):#ok
     if (not isADBWorkNormal()):
         print("adb work abnormal!")
         return False
@@ -99,20 +120,7 @@ def uninstall_app(appPath):#ok
         packageName=getPackageName(appPath)
         if(packageName==None):
             return False
-        install_app="adb uninstall "+" "+packageName
-        status,output=execuateCmd(install_app)
-        if(status==0):#Success
-            index=output.find("Success")
-            if(index!=-1):
-                print(appPath+"卸载成功\n")
-                return True
-            else:
-                print(appPath + "卸载失败\n")
-                return False
-
-        else:
-            print("error:"+str(status)+","+output)
-            return False
+        return uninstall_app_by_packageName(packageName)
 def pushTestFile(appPath_testFile):#ok
     if (not isADBWorkNormal()):
         print("adb work abnormal!")
@@ -248,7 +256,11 @@ def test(apkPath,intent_file):#
         oneIntentFile=open("temp_intent","w")
         oneIntentFile.write(line)
         oneIntentFile.close()
-        flag_install,install_info = installNewAPP(apkPath)
+        flag_install = installNewAPP("/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/android_project/Camera/TestPermissionleakge/app/build/outputs/apk/debug/app-debug.apk")
+        if (not flag_install):
+            print("install error")
+            raise RuntimeError
+        flag_install, install_info = installNewAPP(apkPath)
         if (flag_install):
             flag_pushTestFile,push_info = pushTestFile("./temp_intent")
             if (flag_pushTestFile):
@@ -272,7 +284,8 @@ def test(apkPath,intent_file):#
             app_test_status.write(str(index)+install_info+"\n")
 
         waitForTestStop()
-        uninstall_app(apkPath)
+        uninstall_app_by_path(apkPath)
+        uninstall_app_by_packageName("jacy.popoaichuiniu.com.testpermissionleakge")
         index=index+1
         intent_test_count=intent_test_count+1
         if(intent_test_count%20==0):
@@ -335,10 +348,6 @@ def initialLogger():
     thread2.start()
     thread3.start()
     time.sleep(10)
-    flag_install = installNewAPP("/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/android_project/Camera/TestPermissionleakge/app/build/outputs/apk/debug/app-debug.apk")
-    if (not flag_install):
-        print("install error")
-        raise RuntimeError
 def getFileContent(path):
     str_file=open(path,'r')
     return str_file.readlines();

@@ -126,8 +126,8 @@ public class MainActivity extends AppCompatActivity {
                                         intent.putExtra(attrs[1], Float.valueOf(attrs[2]));
                                     } else if (attrs[0].equals("double")) {
                                         intent.putExtra(attrs[1], Double.valueOf(attrs[2]));
-                                    } else if (attrs[0].equals("float")) {
-                                        intent.putExtra(attrs[1], Float.valueOf(attrs[2]));
+                                    } else if (attrs[0].equals("boolean")) {
+                                        intent.putExtra(attrs[1], Boolean.valueOf(attrs[2]));
                                     } else if (attrs[0].contains("android.os.Bundle"))//[BundleKey, java.lang.String, iambundleExtra, "iambundleExtraValue"]
                                     {
                                         String value = attrs[2];
@@ -152,6 +152,8 @@ public class MainActivity extends AppCompatActivity {
                                                 bundle.putFloat(bundleAttr[2], Float.valueOf(bundleAttr[3]));
                                             } else if (bundleAttr[1].trim().equals("double")) {
                                                 bundle.putDouble(bundleAttr[2], Double.valueOf(bundleAttr[3]));
+                                            } else if (bundleAttr[1].trim().equals("boolean")) {
+                                                bundle.putBoolean(bundleAttr[2], Boolean.valueOf(bundleAttr[3]));
                                             } else {
                                                 Log.i("ZMSStart", "can't handle " + value);
                                             }
@@ -167,7 +169,7 @@ public class MainActivity extends AppCompatActivity {
                                         }
 
                                     } else {
-                                        Log.i("ZMSStart", "can't handle " + extraData);
+                                        Log.i("ZMSStart", "can't handle " + extraData+"eeeeeeeeeeee");
                                     }
 
 
@@ -176,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
 
                             }
                         } catch (NumberFormatException e) {
-                            Log.i("ZMSStart", appPath + "数据转化异常！");
+                            Log.i("ZMSStart", appPath + "数据转化异常！"+content+"eeeeeeeeeeee");
                             continue;
                         }
 
@@ -219,7 +221,7 @@ public class MainActivity extends AppCompatActivity {
 
                 } catch (IOException e) {
                     e.printStackTrace();
-                    Log.i("ZMSStart", "intentInfo.txt打开失败");
+                    Log.i("ZMSStart", "intentInfo.txt打开失败"+"eeeeeeeeeeee");
                 }
 
                 try {
@@ -270,7 +272,7 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
 
-            Log.i("ZMSStart", comPonentType + ":" + comPonentName +"启动异常! "+ e);
+            Log.i("ZMSStart", comPonentType + ":" + comPonentName +"启动异常! "+ e+"eeeeeeeeeeee");
 
             return false;
         }
