@@ -20,6 +20,8 @@ public class GenerateUnitNeedToAnalysis {
 
     private static boolean isTest=Config.isTest;
 
+    private static boolean isJustThinkDangerous=false;
+
 
     private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
     static Set<String> dangerousPermissions=null;
@@ -129,14 +131,22 @@ public class GenerateUnitNeedToAnalysis {
     }
 
     private static boolean isExistSimilarItem(Set<String> permissionSet, Set<String> dangerousPermissions) {
-        for(String permission:permissionSet)
+        if(isJustThinkDangerous)
         {
-            if(dangerousPermissions.contains(permission))
+            for(String permission:permissionSet)
             {
-                return true;
+                if(dangerousPermissions.contains(permission))
+                {
+                    return true;
+                }
             }
+            return false;
         }
-        return false;
+        else
+        {
+            return true;
+        }
+
     }
 
     public static  void  main(String [] args)
@@ -161,7 +171,9 @@ public class GenerateUnitNeedToAnalysis {
         }
         else
         {
-            appDirPath=Config.selectAPP;
+            //appDirPath=Config.selectAPP;
+
+            appDirPath=Config.big_app_set;
         }
 
 

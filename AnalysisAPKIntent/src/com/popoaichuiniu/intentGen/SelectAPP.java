@@ -15,7 +15,7 @@ import java.util.Set;
 
 public class SelectAPP {
 
-    private static String appDir = Config.wandoijiaAPP;
+    private static String appDir = Config.big_app_set;
 
     public static void main(String[] args) {
         ReadFileOrInputStream readFileOrInputStream = new ReadFileOrInputStream("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt");

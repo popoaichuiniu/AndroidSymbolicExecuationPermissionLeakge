@@ -246,7 +246,7 @@ def test(apkPath,intent_file):#
     intent.close()
     statistic_intent_count=open("intent_count",'a+')
     statistic_intent_count.write(apkPath+"\n")
-    statistic_intent_count.write(len(lines_intent)+"\n")
+    statistic_intent_count.write(str(len(lines_intent))+"\n")
     statistic_intent_count.close()
     if(len(lines_intent)>100):
         too_many_test_app=open("too_many_test_app",'a+')

@@ -250,16 +250,16 @@ public class IntentConditionTransformPathInsensitive extends SceneTransformer {
 
 
         try {
-            intentDefineUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnit.txt"));
+            intentDefineUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnit.txt",true));
 
-            intentDefineUnitFileError11111111 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError1111111.txt"));
-            intentDefineUnitFileError22222222 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError2222222.txt"));
+            intentDefineUnitFileError11111111 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError1111111.txt",true));
+            intentDefineUnitFileError22222222 = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentDefUnitError2222222.txt",true));
 
-            intentUseUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentUseUnit.txt"));
+            intentUseUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "intentUseUnit.txt",true));
 
-            ifUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "ifStmtDefAboutIntent.txt"));
+            ifUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "ifStmtDefAboutIntent.txt",true));
 
-            allIfUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "allIfUnitFile.txt"));
+            allIfUnitFile = new BufferedWriter(new FileWriter("AnalysisAPKIntent/intentConditionStatistics/" + "allIfUnitFile.txt",true));
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -16,7 +16,7 @@ import java.util.Set;
 
 public class EAExportUnitUsePermission {
 
-    private static String appDir = Config.wandoijiaAPP;
+    private static String appDir = Config.big_app_set;
 
 
     public static void main(String[] args) {

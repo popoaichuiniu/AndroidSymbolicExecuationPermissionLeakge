@@ -20,10 +20,10 @@ public class Config {
     public static String wandoijiaAPP="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/apks_wandoujia/apks/all_app";
     public static String selectAPP="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP";
 
-
+    public  static String big_app_set="/home/zms/benign_apps/2016";
     public static  String Z3_RUNTIME_SPECS_DIR="Z3_RUNTIME_SPECS_DIR";
 
-    public static boolean isTest=true;
+    public static boolean isTest=false;
 
     // public  static  String defaultAppPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/万花筒之旅一宝宝巴士.apk";
     public static  void setSootOptions(String appPath)

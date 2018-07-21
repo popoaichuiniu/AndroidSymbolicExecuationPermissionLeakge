@@ -39,7 +39,7 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
 
 
     }
-    //终止是不再变化？
+    //终止是不再变化.
 
     @Override
     protected void flowThrough(FlowSet<Value> in, Unit d, FlowSet<Value> out) {//1.从方法中传入的intent属性数据多不多统计一下
@@ -168,6 +168,8 @@ public class IntentFlowAnalysis extends ForwardFlowAnalysis<Unit, FlowSet<Value>
                 }
             }
 
+
+            //是否打印当前语句
             Stmt stmt= (Stmt) d;
             if(stmt.containsInvokeExpr())
             {
