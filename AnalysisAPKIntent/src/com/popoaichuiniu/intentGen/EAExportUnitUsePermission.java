@@ -16,7 +16,7 @@ import java.util.Set;
 
 public class EAExportUnitUsePermission {
 
-    private static String appDir = Config.big_app_set;
+    private static String appDir = Config.xiaomiApp;
 
 
     public static void main(String[] args) {
@@ -47,7 +47,7 @@ public class EAExportUnitUsePermission {
 
 
         for (File file : new File(appDir).listFiles()) {
-            if (file.getName().endsWith(".txt"))//"1元乐购.apk_UnitsNeedAnalysis.txt"
+            if (file.getName().endsWith("apk_UnitsNeedAnalysis.txt"))//"1元乐购.apk_UnitsNeedAnalysis.txt"
             {
                 ReadFileOrInputStream readFileOrInputStream = new ReadFileOrInputStream(file.getAbsolutePath());
                 String apkName = appDir+"/"+file.getName().substring(0, file.getName().length() - 22);

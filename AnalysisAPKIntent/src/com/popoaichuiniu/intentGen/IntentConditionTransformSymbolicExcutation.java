@@ -45,6 +45,13 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     private boolean hasReachBranchLimit = false;
 
 
+    private boolean callGraphLimitEnabled = true;
+
+    private int callgraphEnterBranchLimit = 2<<13;//
+
+    private boolean hasReachCallGraphBranchLimit = false;
+
+
     public String appPath = null;
 
     Set<Triplet<Integer, String, String>> targets = null;
@@ -109,7 +116,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     public Map<SootMethod, UnitGraph> sootMethodUnitGraphMap = new HashMap<>();
 
 
+    private static String lastExceptionApp="lastExceptionApp";
+
+
     public IntentConditionTransformSymbolicExcutation(String apkFilePath) {
+
 
         appPath = apkFilePath;
 
@@ -137,9 +148,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             writeFileAppException.writeStr(appPath + "&" + "UnitsNeedAnalysis.txt出错" + "\n");
             writeFileAppException.close();
 
-            WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
-            writeFileHasBeenProcessedApp.writeStr(appPath + "\n");
-            writeFileHasBeenProcessedApp.close();
+            lastExceptionApp=appPath;
+
         }
 
 
@@ -181,6 +191,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
             writeFileAppException.writeStr(appPath + "####" + "RunTimeException" + "@@@" + e.getMessage() + "%%%" + ExceptionUtil.getStackTrace(e) + "\n\n");
             writeFileAppException.close();
 
+            lastExceptionApp=appPath;
+
 
         }
 
@@ -203,9 +215,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         }
 
-        IntentInfoFileGenerate.generateIntentInfoFile(appPath,intentInfoList);
-
-
+        IntentInfoFileGenerate.generateIntentInfoFile(appPath, intentInfoList);
 
 
         writeFile_intent_ulti.close();
@@ -317,24 +327,18 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
     private IntentInfo getIntentInfo(IntentUnit intentUnit) {
 
-        IntentInfo intentInfo=new IntentInfo();
-        intentInfo.appPath=appPath;
-        intentInfo.appPackageName=packageName;
-        intentInfo.comPonentType=intentUnit.comPonentType;
-        intentInfo.comPonentName=intentUnit.comPonentName;
+        IntentInfo intentInfo = new IntentInfo();
+        intentInfo.appPath = appPath;
+        intentInfo.appPackageName = packageName;
+        intentInfo.comPonentType = intentUnit.comPonentType;
+        intentInfo.comPonentName = intentUnit.comPonentName;
 
-        intentInfo.comPonentAction=intentUnit.intent.action;
+        intentInfo.comPonentAction = intentUnit.intent.action;
         intentInfo.comPonentCategory.addAll(intentUnit.intent.categories);
         intentInfo.comPonentExtraData.addAll(intentUnit.intent.myExtras);
 
 
         return intentInfo;
-
-
-
-
-
-
 
 
     }
@@ -568,8 +572,21 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
         Map<SootMethod, Set<Intent>> sootMethodIntentConditionSummary = new HashMap<>();
         Set<List<SootMethod>> sootMethodCallFinalPaths = new HashSet<>();
         //正向路径
-        getCallPathSootMethod(myCallGraph.dummyMainMethod, new ArrayList<SootMethod>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths, sootMethodSetIntentCondition, sootMethodIntentConditionSummary);
 
+        if(!callGraphLimitEnabled)
+        {
+            callgraphEnterBranchLimit=Integer.MAX_VALUE;
+        }
+
+        hasReachCallGraphBranchLimit=false;
+        getCallPathSootMethod(myCallGraph.dummyMainMethod, new ArrayList<SootMethod>(), myCallGraph, null, new HashSet<Edge>(), sootMethodCallFinalPaths, sootMethodSetIntentCondition, sootMethodIntentConditionSummary,1);
+        if(hasReachCallGraphBranchLimit)
+        {
+            WriteFile writeFileCallGraphReachLimit=new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/callgraphLimit.txt",true);
+            writeFileCallGraphReachLimit.writeStr(appPath+"\n");
+            writeFileCallGraphReachLimit.close();
+            return;
+        }
 
         for (Iterator<Edge> edgeIterator = myCallGraph.edgesOutOf(myCallGraph.dummyMainMethod); edgeIterator.hasNext(); ) {
 
@@ -901,7 +918,13 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
     }
 
 
-    private Set<Intent> getCallPathSootMethod(SootMethod sootMethod, List<SootMethod> callSootMethodPath, MyCallGraph cg, Edge edge, Set<Edge> edgeSet, Set<List<SootMethod>> sootMethodCallFinalPaths, Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodUnitIntentConditionMap, Map<SootMethod, Set<Intent>> sootMethodIntentConditionSummary) {
+    private Set<Intent> getCallPathSootMethod(SootMethod sootMethod, List<SootMethod> callSootMethodPath, MyCallGraph cg, Edge edge, Set<Edge> edgeSet, Set<List<SootMethod>> sootMethodCallFinalPaths, Map<SootMethod, Map<Unit, Set<Intent>>> sootMethodUnitIntentConditionMap, Map<SootMethod, Set<Intent>> sootMethodIntentConditionSummary,int branch) {
+
+        if(branch>callgraphEnterBranchLimit)
+        {
+            hasReachCallGraphBranchLimit=true;
+            return null;
+        }
 
         List<SootMethod> callSootMethodPathCopy = new ArrayList<>(callSootMethodPath);
 
@@ -932,6 +955,8 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
         Set<Intent> hashSetParentSummary = new HashSet<>();
 
+        branch=branch*(cg.outEdgesOfThisMethod.get(sootMethod).size());
+
         for (Iterator<Edge> edgeIterator = cg.edgesOutOf(sootMethod); edgeIterator.hasNext(); ) {
             Edge outEdge = edgeIterator.next();
 
@@ -944,7 +969,11 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
                 Set<Intent> hashSetChildrenSummary = null;
                 if (!sootMethodIntentConditionSummary.containsKey(sootMethodTgt)) {
-                    hashSetChildrenSummary = getCallPathSootMethod(sootMethodTgt, callSootMethodPathCopy, cg, outEdge, edgeSetCopy, sootMethodCallFinalPaths, sootMethodUnitIntentConditionMap, sootMethodIntentConditionSummary);
+                    hashSetChildrenSummary = getCallPathSootMethod(sootMethodTgt, callSootMethodPathCopy, cg, outEdge, edgeSetCopy, sootMethodCallFinalPaths, sootMethodUnitIntentConditionMap, sootMethodIntentConditionSummary,branch);
+                    if(hasReachCallGraphBranchLimit)
+                    {
+                        return null;
+                    }
                 } else {
 
                     hashSetChildrenSummary = sootMethodIntentConditionSummary.get(sootMethodTgt);//取出sootMethodTgt到达targetSootMethod的所有intent条件
@@ -4284,7 +4313,7 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
 
             //appDir = Config.wandoijiaAPP;
             //appDir = Config.fDroidAPPDir;
-            appDir = Config.selectAPP;
+            appDir = Config.xiaomiAppSelect;
         }
 
         File appDirFile = new File(appDir);
@@ -4315,8 +4344,20 @@ public class IntentConditionTransformSymbolicExcutation extends SceneTransformer
                             WriteFile writeFileHasBeenProcessedApp = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "hasSatisticIfReducedAndPreviousIF.txt", true);
 
                             MyLogger.getOverallLogger(IntentConditionTransformSymbolicExcutation.class).info(file.getAbsolutePath() + "开始分析" + "\n");
+
+
+                            long startTime = System.nanoTime();
                             IntentConditionTransformSymbolicExcutation intentConditionTransform = new IntentConditionTransformSymbolicExcutation(file.getAbsolutePath());
                             intentConditionTransform.run();
+                            long endTime = System.nanoTime();
+                            if(!lastExceptionApp.equals(file.getAbsolutePath()))
+                            {
+                                WriteFile writeFileTimeUse = new WriteFile("AnalysisAPKIntent/intentConditionSymbolicExcutationResults/" + "timeUse.txt", true);
+                                writeFileTimeUse.writeStr(((((double) (endTime - startTime)) / 1E9) + "," + file.getAbsolutePath() + "\n"));
+                                writeFileTimeUse.close();
+                            }
+
+
 
 
                             saveIntent(intentConditionTransform.allIntentConditionOfOneApp, file.getAbsolutePath());

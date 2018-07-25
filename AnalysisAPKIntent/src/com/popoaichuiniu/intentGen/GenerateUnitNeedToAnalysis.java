@@ -20,7 +20,7 @@ public class GenerateUnitNeedToAnalysis {
 
     private static boolean isTest=Config.isTest;
 
-    private static boolean isJustThinkDangerous=false;
+    private static boolean isJustThinkDangerous=true;
 
 
     private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
@@ -173,7 +173,9 @@ public class GenerateUnitNeedToAnalysis {
         {
             //appDirPath=Config.selectAPP;
 
-            appDirPath=Config.big_app_set;
+            //appDirPath=Config.big_app_set;
+            appDirPath=Config.xiaomiAppSelect;
+
         }
 
 

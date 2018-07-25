@@ -23,6 +23,14 @@ public class Config {
     public  static String big_app_set="/home/zms/benign_apps/2016";
     public static  String Z3_RUNTIME_SPECS_DIR="Z3_RUNTIME_SPECS_DIR";
 
+    public  static String selectAPP2="/home/zms/selectAPP2";
+
+    public  static String huaweiApp="/home/zms/huaweiApp";
+    public  static String huaweiAppSelect="/home/zms/huaweiAPPSelect";
+
+    public  static  String xiaomiApp="/home/zms/xiaomiAPP";
+    public  static  String xiaomiAppSelect="/home/zms/xiaomiAPPSelect";
+
     public static boolean isTest=false;
 
     // public  static  String defaultAppPath="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/AnalysisAPKIntent/万花筒之旅一宝宝巴士.apk";

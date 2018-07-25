@@ -160,7 +160,7 @@ public class InstrumentAPPBeforePermissionInvoke extends BodyTransformer {
         if (isTest) {
             appDir = Config.defaultAppPath;
         } else {
-            appDir = Config.selectAPP;
+            appDir = Config.xiaomiAppSelect;
         }
 
 

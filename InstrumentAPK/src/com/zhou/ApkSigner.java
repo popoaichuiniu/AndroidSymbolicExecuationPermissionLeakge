@@ -20,7 +20,7 @@ public class ApkSigner {
         if (isTest) {
             appDir = new File(Config.defaultAppPath).getParentFile().getAbsolutePath() + "/" + "instrumented/" + new File(Config.defaultAppPath).getName();
         } else {
-            appDir = Config.selectAPP + "/" + "instrumented";
+            appDir = Config.xiaomiAppSelect + "/" + "instrumented";
         }
 
         File appDirFile = new File(appDir);

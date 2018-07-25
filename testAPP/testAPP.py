@@ -396,25 +396,34 @@ if __name__ == '__main__':
     success_apk_list=open("successTest_apk_list","a+")
     has_process = getFileContent("has_process_app_list")
     has_process_app_list = open("has_process_app_list", "a+")
+    timeUse=open("timeUse.txt","a+")
     while(not isADBWorkNormal()):
         print("等待adb工作正常")
         time.sleep(1)
-    apkDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented"
+    #apkDir="/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/selectAPP/instrumented"
     #apkDir='/media/lab418/4579cb84-2b61-4be5-a222-bdee682af51b/myExperiment/idea_ApkIntentAnalysis/android_project/Camera/TestWebView2/app/build/outputs/apk/debug/instrumented'
-
+    #apkDir='/home/zms/selectAPP2/instrumented'
+    #apkDir='/home/zms/huaweiAPPSelect/instrumented'
+    apkDir='/home/zms/xiaomiAPPSelect/instrumented'
     for apkPath,intent_file in analysisAPKDir(apkDir):
         if apkPath in has_process:
             continue
         has_process_app_list.write(apkPath + "\n")
         has_process_app_list.flush()
+        start_time=time.time()
         flag_test=test(apkPath,intent_file)
         if(flag_test):
+            end_time=time.time()
+            timeUse.write(str(end_time-start_time)+"\n")
+            timeUse.flush()
             success_apk_list.write(apkPath+"\n")
             success_apk_list.flush()
         else:
             print(apkPath+"测试失败！")
             fail_apk_list.write(apkPath+"\n")
             fail_apk_list.flush()
+
+    timeUse.close()
     success_apk_list.close()
     fail_apk_list.close()
     has_process_app_list.close()

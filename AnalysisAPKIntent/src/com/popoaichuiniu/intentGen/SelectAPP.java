@@ -15,7 +15,7 @@ import java.util.Set;
 
 public class SelectAPP {
 
-    private static String appDir = Config.big_app_set;
+    private static String appDir = Config.xiaomiApp;
 
     public static void main(String[] args) {
         ReadFileOrInputStream readFileOrInputStream = new ReadFileOrInputStream("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousPermission.txt");
@@ -28,7 +28,7 @@ public class SelectAPP {
                 dangerousPermissionsIterator.remove();
             }
         }
-        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/unitNeedAnalysisGenerate/dangerousAPP.txt",false);
+        WriteFile writeFile = new WriteFile("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+new File(appDir).getName()+"_dangerousAPP.txt",false);
         File xmlFile = new File("AnalysisAPKIntent/unitNeedAnalysisGenerate/" + new File(appDir).getName() + "_DIR_permissionUse.xml");
         Set<String> apps=new HashSet<>();
 
@@ -57,7 +57,7 @@ public class SelectAPP {
         {
             System.out.println(app);
             try {
-                FileOutputStream fileOutputStream=new FileOutputStream("selectAPP/"+new File(app).getName());
+                FileOutputStream fileOutputStream=new FileOutputStream("/home/zms/xiaomiAPPSelect/"+new File(app).getName());
                 FileInputStream fileInputStream=new FileInputStream(new File(app));
                 byte [] buffer= new byte[1024*512];
                 int length=-1;
