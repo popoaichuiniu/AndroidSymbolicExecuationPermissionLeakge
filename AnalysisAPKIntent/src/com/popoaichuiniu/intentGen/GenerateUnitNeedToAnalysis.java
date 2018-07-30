@@ -20,7 +20,7 @@ public class GenerateUnitNeedToAnalysis {
 
     private static boolean isTest=Config.isTest;
 
-    private static boolean isJustThinkDangerous=true;
+    private static boolean isJustThinkDangerous=false;
 
 
     private static  BufferedWriter bufferedWriterOverridePermissionMethod=null;
@@ -174,7 +174,7 @@ public class GenerateUnitNeedToAnalysis {
             //appDirPath=Config.selectAPP;
 
             //appDirPath=Config.big_app_set;
-            appDirPath=Config.xiaomiAppSelect;
+            appDirPath=Config.wandoijiaAPP;
 
         }
 
@@ -194,6 +194,16 @@ public class GenerateUnitNeedToAnalysis {
         {
 
 
+
+            File hasGeneratedAPPFile=new File("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt");
+            if (!hasGeneratedAPPFile.exists())
+            {
+                try {
+                    hasGeneratedAPPFile.createNewFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
 
 
             List<String> hasGenerateAppList=null;
@@ -225,6 +235,7 @@ public class GenerateUnitNeedToAnalysis {
             BufferedWriter bufferedWriterHasGenerateUnitNeedAnalysis=null;
 
             try {
+
 
                 bufferedWriterHasGenerateUnitNeedAnalysis =new BufferedWriter(new FileWriter("AnalysisAPKIntent/unitNeedAnalysisGenerate/"+appDir.getName()+"_hasGeneratedAPP.txt",true));
 
